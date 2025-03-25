@@ -1,0 +1,34 @@
+{
+    "MOODLE_401_STABLE": {
+        "php": ["7.4", "8.0", "8.1"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_402_STABLE": {
+        "php": ["8.0", "8.1", "8.2"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_403_STABLE": {
+        "php": ["8.0", "8.1", "8.2"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_404_STABLE": {
+        "php": ["8.1", "8.2", "8.3"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_405_STABLE": {
+        "php": ["8.1", "8.2", "8.3"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_500_STABLE": {
+        "php": ["8.2", "8.3", "8.4"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "MOODLE_501_STABLE": {
+        "php": ["8.2", "8.3", "8.4"],
+        "database": ["pgsql", "mariadb"]
+    },
+    "main": {
+        "php": ["8.3", "8.4"],
+        "database": ["pgsql", "mariadb"]
+    }
+}

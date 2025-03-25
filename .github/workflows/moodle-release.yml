@@ -1,0 +1,86 @@
+name: Moodle Plugin Release
+
+on:
+  workflow_call:
+    inputs:
+      plugin-name:
+        description: 'Plugin frankenstyle name (if not provided, it will be auto-detected from the repository name)'
+        type: string
+        required: false
+    secrets:
+      MOODLE_ORG_TOKEN:
+        description: 'Moodle.org API token for plugin releases'
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-at-moodle-org:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine plugin name
+        id: determine-plugin
+        run: |
+          # If a plugin-name input is provided, use it.
+          if [ -n "${{ inputs.plugin-name }}" ]; then
+            PLUGIN_NAME="${{ inputs.plugin-name }}"
+            echo "Using provided plugin name: $PLUGIN_NAME"
+          else
+            # Auto-detect from repository name.
+            REPO_NAME="${{ github.event.repository.name }}"
+            echo "Repository name: $REPO_NAME"
+
+            # Check if repository name starts with "moodle-"
+            if [[ "$REPO_NAME" =~ ^moodle-(.+)$ ]]; then
+              PLUGIN_NAME="${BASH_REMATCH[1]}"
+              echo "Auto-detected plugin name: $PLUGIN_NAME"
+            else
+              echo "Error: Repository name '$REPO_NAME' does not follow 'moodle-<pluginname>' pattern"
+              echo "Error: Please provide an explicit 'plugin-name' input parameter"
+              exit 1
+            fi
+          fi
+
+          echo "plugin-name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+          echo "Final plugin name: $PLUGIN_NAME"
+
+      - name: Call the service function
+        id: add-version
+        env:
+          PLUGIN: ${{ steps.determine-plugin.outputs.plugin-name }}
+          CURL: curl -s
+          ENDPOINT: https://moodle.org/webservice/rest/server.php
+          TOKEN: ${{ secrets.MOODLE_ORG_TOKEN }}
+          FUNCTION: local_plugins_add_version
+        run: |
+          if [[ ! -z "${{ github.event.inputs.tag }}" ]]; then
+            TAGNAME="${{ github.event.inputs.tag }}"
+          elif [[ $GITHUB_REF = refs/tags/* ]]; then
+            TAGNAME="${GITHUB_REF##*/}"
+          fi
+          if [[ -z "${TAGNAME}" ]]; then
+            echo "No tag name has been provided!"
+            exit 1
+          fi
+          ZIPURL="https://api.github.com/repos/${{ github.repository }}/zipball/${TAGNAME}"
+          RESPONSE=$(${CURL} ${ENDPOINT} --data-urlencode "wstoken=${TOKEN}" \
+                                         --data-urlencode "wsfunction=${FUNCTION}" \
+                                         --data-urlencode "moodlewsrestformat=json" \
+                                         --data-urlencode "frankenstyle=${PLUGIN}" \
+                                         --data-urlencode "zipurl=${ZIPURL}" \
+                                         --data-urlencode "vcssystem=git" \
+                                         --data-urlencode "vcsrepositoryurl=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+                                         --data-urlencode "vcstag=${TAGNAME}" \
+                                         --data-urlencode "changelogurl=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commits/${TAGNAME}" \
+                                         --data-urlencode "altdownloadurl=${ZIPURL}")
+          echo "response=${RESPONSE}" >> $GITHUB_OUTPUT
+
+      - name: Evaluate the response
+        id: evaluate-response
+        env:
+          RESPONSE: ${{ steps.add-version.outputs.response }}
+        run: |
+          jq <<< ${RESPONSE}
+          jq --exit-status ".id" <<< ${RESPONSE} > /dev/null
