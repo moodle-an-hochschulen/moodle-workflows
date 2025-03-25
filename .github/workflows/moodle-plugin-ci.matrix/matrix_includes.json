@@ -1,0 +1,17 @@
+[
+    {
+        "moodle_branch": "MOODLE_405_STABLE",
+        "php": "8.1",
+        "databases": "pgsql"
+    },
+    {
+        "moodle_branch": "MOODLE_405_STABLE",
+        "php": "8.2",
+        "databases": "pgsql"
+    },
+    {
+        "moodle_branch": "MOODLE_405_STABLE",
+        "php": "8.3",
+        "databases": "pgsql"
+    }
+]
