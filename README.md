@@ -31,6 +31,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
+- **Additional services support** including Redis service for plugins that require caching or session storage
 
 ### Usage
 
@@ -110,8 +111,32 @@ jobs:
     with:
       moodle-core-branch: MOODLE_500_STABLE
       one-db-only: true
-      plugin-dependencies: |
-        vendor/moodle-plugin-dependency,main
+```
+
+#### With Redis service and PHP extensions
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      moodle-core-branch:
+        description: 'Moodle core branch to test against (if not provided, the branch will be auto-detected)'
+        required: false
+        type: string
+  repository_dispatch:
+    types: [moodle-plugin-ci]
+
+jobs:
+  moodle-plugin-ci:
+    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
+    with:
+      moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
+      redis-enabled: true
+      php-extensions: "redis"
 ```
 
 ### Available parameters
@@ -122,6 +147,8 @@ jobs:
 | `plugin-dependencies` | string | No | - | List of plugin dependencies with repository and branch (use one dependency per line and separate repository and branch with a comma) |
 | `one-db-only` | boolean | No | false | Use only PostgreSQL database instead of all configured databases |
 | `max-parallel-verify` | number | No | unlimited | Maximum number of parallel jobs for the verify job (can be useful if you have really long running Behat tests and do not want to block too many runners at the same time) |
+| `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
+| `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 
 ### Automatic Moodle core branch detection
 
@@ -131,6 +158,16 @@ The workflow includes an intelligent Moodle core branch detection that works as 
 2. **Branch pattern matching**: If the current plugin branch matches the `MOODLE_XXX_STABLE` pattern, it is used as Moodle core branch as well
 3. **Main branch handling**: If the current plugin branch is the `main` branch, the workflow searches for the highest available `MOODLE_XXX_STABLE` branch in the plugin repository and uses it as Moodle core branch
 4. **version.php parsing**: As final fallback, especially when testing feature branches with arbitrary namings, the workflow parses the `$plugin->supported` array to determine the maximum supported Moodle version and uses this as Moodle core branch
+
+### Additional services and PHP extensions
+
+The workflow supports starting additional services that your plugin might need during testing:
+
+#### Redis service
+Set `redis-enabled: true` to start a Redis service that will be available at `localhost:6379`. This is useful for plugins that use Redis for caching or session storage.
+
+#### PHP extensions
+Use the `php-extensions` parameter to install additional PHP extensions needed by your plugin. Specify multiple extensions separated by commas (e.g., `"redis,imagick,memcached"`). The extensions are installed using `shivammathur/setup-php@v2`.
 
 ### CLI tool
 

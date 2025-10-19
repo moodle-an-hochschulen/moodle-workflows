@@ -20,6 +20,15 @@ on:
         description: Maximum number of parallel jobs for the verify job (if not set, no limit applies)
         type: number
         required: false
+      redis-enabled:
+        description: Start Redis service before running runtime tests
+        type: boolean
+        required: false
+        default: false
+      php-extensions:
+        description: Additional PHP extensions to install (comma-separated, e.g. "redis,memcached")
+        type: string
+        required: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -137,8 +146,17 @@ jobs:
             [{
               "moodle-core-branch": $ARGS.named.branch,
               "php": (.php | max),
-              "database": "pgsql"
+              "database": "pgsql",
+              "extensions": ((.extensions // []) | join(","))
             }]' --arg branch "$DETECTED_BRANCH")
+
+          # Add custom PHP extensions if provided
+          if [ -n "${{ inputs.php-extensions }}" ]; then
+            CUSTOM_EXTENSIONS='${{ inputs.php-extensions }}'
+            MATRIX_RUN_JSON=$(echo "$MATRIX_RUN_JSON" | jq -c --arg ext "$CUSTOM_EXTENSIONS" '
+              map(.extensions = if .extensions == "" then $ext else (.extensions + "," + $ext) end)
+            ')
+          fi
 
           echo "matrix-run={\"include\":$MATRIX_RUN_JSON}" >> $GITHUB_OUTPUT
 
@@ -149,7 +167,8 @@ jobs:
               [.php[] as $php | select($php != (.php | max)) | {
                 "moodle-core-branch": $ARGS.named.branch,
                 "php": $php,
-                "database": "pgsql"
+                "database": "pgsql",
+                "extensions": ((.extensions // []) | join(","))
               }]' --arg branch "$DETECTED_BRANCH")
           else
             # Use all configured databases, but exclude highest PHP + PostgreSQL combination
@@ -158,8 +177,17 @@ jobs:
                select(($php == (.php | max) and $db == "pgsql") | not) | {
                 "moodle-core-branch": $ARGS.named.branch,
                 "php": $php,
-                "database": $db
+                "database": $db,
+                "extensions": ((.extensions // []) | join(","))
               }]' --arg branch "$DETECTED_BRANCH")
+          fi
+
+          # Add custom PHP extensions if provided
+          if [ -n "${{ inputs.php-extensions }}" ]; then
+            CUSTOM_EXTENSIONS='${{ inputs.php-extensions }}'
+            MATRIX_VERIFY_JSON=$(echo "$MATRIX_VERIFY_JSON" | jq -c --arg ext "$CUSTOM_EXTENSIONS" '
+              map(.extensions = if .extensions == "" then $ext else (.extensions + "," + $ext) end)
+            ')
           fi
 
           echo "matrix-verify={\"include\":$MATRIX_VERIFY_JSON}" >> $GITHUB_OUTPUT
@@ -169,8 +197,17 @@ jobs:
             {
               "moodle-core-branch": $ARGS.named.branch,
               "php": (.php | max),
-              "database": "pgsql"
+              "database": "pgsql",
+              "extensions": ((.extensions // []) | join(","))
             }' --arg branch "$DETECTED_BRANCH")
+
+          # Add custom PHP extensions if provided
+          if [ -n "${{ inputs.php-extensions }}" ]; then
+            CUSTOM_EXTENSIONS='${{ inputs.php-extensions }}'
+            MATRIX_STATIC_JSON=$(echo "$MATRIX_STATIC_JSON" | jq -c --arg ext "$CUSTOM_EXTENSIONS" '
+              .extensions = if .extensions == "" then $ext else (.extensions + "," + $ext) end
+            ')
+          fi
 
           echo "matrix-static={\"include\":[$MATRIX_STATIC_JSON]}" >> $GITHUB_OUTPUT
 
@@ -325,6 +362,12 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
 
+      redis:
+        image: ${{ inputs.redis-enabled && 'redis:latest' || '' }}
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
+
     strategy:
       fail-fast: true
       matrix: ${{ fromJson(needs.preflight.outputs.matrix-run) }}
@@ -416,6 +459,12 @@ jobs:
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries 3
+
+      redis:
+        image: ${{ inputs.redis-enabled && 'redis:latest' || '' }}
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
 
     strategy:
       fail-fast: false
