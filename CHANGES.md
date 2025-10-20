@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2025-10-20 - Add options to continue on error within the Moodle Codechecker and the Mustache Lint steps
 * 2025-10-20 - Add option to select the theme to be used for running Behat tests
 * 2025-10-20 - Add options for pull request content validation
 * 2025-10-20 - Add option to start additonal service with Docker Compose for runtime tests

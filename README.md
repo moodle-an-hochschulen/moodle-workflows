@@ -34,6 +34,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
+- **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
 
 ### Usage
 
@@ -158,6 +159,21 @@ jobs:
       behat-suite: "boost_union"
 ```
 
+#### With continue-on-error for code quality checks
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      phpcs-continue-on-error: true
+      mustache-continue-on-error: true
+```
+
 ### Available parameters
 
 | Parameter | Type | Required | Default | Description |
@@ -169,6 +185,7 @@ jobs:
 | `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
+| `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
 | `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
 | `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
 | `pr-check-body-contains` | string | No | - | Pull request body must contain this text |
@@ -176,7 +193,8 @@ jobs:
 | `pr-check-files-changed` | string | No | - | Number of files that must have changed in pull request |
 | `pr-check-lines-changed` | string | No | - | Number of lines that must have changed in pull request |
 | `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
-| `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
+| `phpcs-continue-on-error` | boolean | No | false | Continue on error for Moodle Code Checker (phpcs) |
+| `mustache-continue-on-error` | boolean | No | false | Continue on error for Mustache Lint |
 
 ### Automatic Moodle core branch detection
 

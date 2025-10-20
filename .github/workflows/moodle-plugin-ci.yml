@@ -65,6 +65,16 @@ on:
         description: Comma-separated list of users exempt from pull request checks
         type: string
         required: false
+      phpcs-continue-on-error:
+        description: Continue on error for Moodle Code Checker (phpcs)
+        type: boolean
+        required: false
+        default: false
+      mustache-continue-on-error:
+        description: Continue on error for Mustache Lint
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -331,6 +341,7 @@ jobs:
 
       - name: Moodle Code Checker
         if: ${{ !cancelled() }}
+        continue-on-error: ${{ inputs.phpcs-continue-on-error }}
         run: moodle-plugin-ci phpcs --max-warnings 0
 
       - name: Pull request content checker
@@ -386,6 +397,7 @@ jobs:
 
       - name: Mustache Lint
         if: ${{ !cancelled() }}
+        continue-on-error: ${{ inputs.mustache-continue-on-error }}
         run: moodle-plugin-ci mustache
 
       - name: Grunt
