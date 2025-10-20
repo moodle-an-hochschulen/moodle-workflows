@@ -31,7 +31,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
-- **Additional services support** including Redis service for plugins that require caching or session storage
+- **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 
 ### Usage
 
@@ -61,53 +61,37 @@ jobs:
       moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
 ```
 
-#### With plugin dependencies
+#### More sophisticated setups
+
+The following examples are meant to keep all lines of the basic setup above as all its parameters have its purpose.
+However, if you know what you are doing, you are free to customize the setup beyond our examples, of course.
+
+##### With plugin dependencies
 
 ```yaml
 name: Moodle Plugin CI
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
-    inputs:
-      moodle-core-branch:
-        description: 'Moodle core branch to test against (if not provided, the branch will be auto-detected)'
-        required: false
-        type: string
-  repository_dispatch:
-    types: [moodle-plugin-ci]
+  [...]
 
 jobs:
   moodle-plugin-ci:
-    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
-      moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
       plugin-dependencies: |
         learnweb/moodle-tool_lifecycle,main
         learnweb/moodle-customfield_semester,main
 ```
 
-#### With manual branch selection and Postgres-only testing
+##### With manual branch selection and Postgres-only testing
 
 ```yaml
 name: Moodle Plugin CI
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
-    inputs:
-      moodle-core-branch:
-        description: 'Moodle core branch to test against (if not provided, the branch will be auto-detected)'
-        required: false
-        type: string
-  repository_dispatch:
-    types: [moodle-plugin-ci]
+  [...]
 
 jobs:
   moodle-plugin-ci:
-    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
       moodle-core-branch: MOODLE_500_STABLE
       one-db-only: true
@@ -119,24 +103,27 @@ jobs:
 name: Moodle Plugin CI
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
-    inputs:
-      moodle-core-branch:
-        description: 'Moodle core branch to test against (if not provided, the branch will be auto-detected)'
-        required: false
-        type: string
-  repository_dispatch:
-    types: [moodle-plugin-ci]
+  [...]
 
 jobs:
   moodle-plugin-ci:
-    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
-      moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
       redis-enabled: true
       php-extensions: "redis"
+```
+
+#### With Docker Compose for starting an additional service
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      docker-compose-file: "tests/fixtures/bitnami-openldap-docker-compose.yaml"
 ```
 
 ### Available parameters
@@ -149,6 +136,7 @@ jobs:
 | `max-parallel-verify` | number | No | unlimited | Maximum number of parallel jobs for the verify job (can be useful if you have really long running Behat tests and do not want to block too many runners at the same time) |
 | `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
+| `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
 
 ### Automatic Moodle core branch detection
 
@@ -165,6 +153,9 @@ The workflow supports starting additional services that your plugin might need d
 
 #### Redis service
 Set `redis-enabled: true` to start a Redis service that will be available at `localhost:6379`. This is useful for plugins that use Redis for caching or session storage.
+
+#### Docker Compose service
+For more complex service requirements, you can use the `docker-compose-file` parameter to start an additional service using Docker Compose. Specify the path to your Docker Compose file relative to your repository root (e.g., `'tests/fixtures/openldap-docker-compose.yaml'`). The service will be started before running the runtime tests (run and verify jobs) but not during static tests.
 
 #### PHP extensions
 Use the `php-extensions` parameter to install additional PHP extensions needed by your plugin. Specify multiple extensions separated by commas (e.g., `"redis,imagick,memcached"`). The extensions are installed using `shivammathur/setup-php@v2`.

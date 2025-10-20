@@ -29,6 +29,10 @@ on:
         description: Additional PHP extensions to install (comma-separated, e.g. "redis,memcached")
         type: string
         required: false
+      docker-compose-file:
+        description: Path to Docker Compose file (relative to plugin repository root) for starting an additional service
+        type: string
+        required: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -378,6 +382,12 @@ jobs:
         with:
           path: plugin
 
+      - name: Start additional service from Docker Compose
+        if: ${{ inputs.docker-compose-file != '' }}
+        uses: adambirds/docker-compose-action@v1.5.0
+        with:
+          compose-file: ${{ github.workspace }}/plugin/${{ inputs.docker-compose-file }}
+
       - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
@@ -476,6 +486,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: plugin
+
+      - name: Start additional service from Docker Compose
+        if: ${{ inputs.docker-compose-file != '' }}
+        uses: adambirds/docker-compose-action@v1.5.0
+        with:
+          compose-file: ${{ github.workspace }}/plugin/${{ inputs.docker-compose-file }}
 
       - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
