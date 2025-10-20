@@ -29,6 +29,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Easy plugin dependency addition** for plugins that depend on other plugins
 - **Split static and runtime jobs** to avoid running static tests unnecessarily on each PHP and database version
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
+- **Behat suite selection** to select the theme to be used for running Behat tests
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -143,6 +144,20 @@ jobs:
       pr-check-waived-users: "dependabot[bot]"
 ```
 
+#### With specific Behat suite
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      behat-suite: "boost_union"
+```
+
 ### Available parameters
 
 | Parameter | Type | Required | Default | Description |
@@ -161,6 +176,7 @@ jobs:
 | `pr-check-files-changed` | string | No | - | Number of files that must have changed in pull request |
 | `pr-check-lines-changed` | string | No | - | Number of lines that must have changed in pull request |
 | `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
+| `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
 
 ### Automatic Moodle core branch detection
 
@@ -187,7 +203,6 @@ Use the `php-extensions` parameter to install additional PHP extensions needed b
 ### Pull request content validation
 
 The workflow supports automated pull request content validation using the [github-pr-contains-action](https://github.com/JJ/github-pr-contains-action) action by JJ. These checks run during the static analysis phase and only apply to pull requests. Please see JJ's documentation for additional details.
-
 
 ### CLI tool
 

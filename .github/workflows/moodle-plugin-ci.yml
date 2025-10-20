@@ -33,6 +33,10 @@ on:
         description: Path to Docker Compose file (relative to plugin repository root) for starting an additional service
         type: string
         required: false
+      behat-suite:
+        description: The theme to be used for running Behat tests (e.g. "boost_union")
+        type: string
+        required: false
       pr-check-diff-contains:
         description: Pull request diff must contain this text
         type: string
@@ -470,7 +474,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome --scss-deprecations
+        run: moodle-plugin-ci behat --profile chrome --scss-deprecations${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
@@ -575,7 +579,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome --scss-deprecations
+        run: moodle-plugin-ci behat --profile chrome --scss-deprecations${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
