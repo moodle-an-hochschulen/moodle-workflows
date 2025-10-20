@@ -30,6 +30,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Split static and runtime jobs** to avoid running static tests unnecessarily on each PHP and database version
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
 - **Behat suite selection** to select the theme to be used for running Behat tests
+- **Behat timeout handling** to raise the Behat timeout if the plugin requires it
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -159,6 +160,20 @@ jobs:
       behat-suite: "boost_union"
 ```
 
+#### With increased Behat timeout
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      behat-timeout: 3
+```
+
 #### With continue-on-error for code quality checks
 
 ```yaml
@@ -186,6 +201,7 @@ jobs:
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
 | `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
+| `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |
 | `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
 | `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
 | `pr-check-body-contains` | string | No | - | Pull request body must contain this text |

@@ -37,6 +37,10 @@ on:
         description: The theme to be used for running Behat tests (e.g. "boost_union")
         type: string
         required: false
+      behat-timeout:
+        description: Behat timeout multiplier (e.g. 3 for 3x timeout)
+        type: number
+        required: false
       pr-check-diff-contains:
         description: Pull request diff must contain this text
         type: string
@@ -483,6 +487,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpunit --fail-on-warning
 
+      - name: Raise Behat timeout
+        if: ${{ !cancelled() && inputs.behat-timeout != '' }}
+        run: moodle-plugin-ci add-config '$CFG->behat_increasetimeout = ${{ inputs.behat-timeout }};'
+
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
@@ -587,6 +595,10 @@ jobs:
       - name: PHPUnit tests
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpunit --fail-on-warning
+
+      - name: Raise Behat timeout
+        if: ${{ !cancelled() && inputs.behat-timeout != '' }}
+        run: moodle-plugin-ci add-config '$CFG->behat_increasetimeout = ${{ inputs.behat-timeout }};'
 
       - name: Behat features
         id: behat
