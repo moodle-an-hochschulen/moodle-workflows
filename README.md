@@ -32,6 +32,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
+- **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
 
 ### Usage
 
@@ -126,6 +127,22 @@ jobs:
       docker-compose-file: "tests/fixtures/bitnami-openldap-docker-compose.yaml"
 ```
 
+#### With pull request content checks
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      pr-check-diff-does-not-contain: "theme->settings->"
+      pr-check-body-contains: "MDL-"
+      pr-check-waived-users: "dependabot[bot]"
+```
+
 ### Available parameters
 
 | Parameter | Type | Required | Default | Description |
@@ -137,6 +154,13 @@ jobs:
 | `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
+| `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
+| `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
+| `pr-check-body-contains` | string | No | - | Pull request body must contain this text |
+| `pr-check-body-does-not-contain` | string | No | - | Pull request body must not contain this text |
+| `pr-check-files-changed` | string | No | - | Number of files that must have changed in pull request |
+| `pr-check-lines-changed` | string | No | - | Number of lines that must have changed in pull request |
+| `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
 
 ### Automatic Moodle core branch detection
 
@@ -159,6 +183,11 @@ For more complex service requirements, you can use the `docker-compose-file` par
 
 #### PHP extensions
 Use the `php-extensions` parameter to install additional PHP extensions needed by your plugin. Specify multiple extensions separated by commas (e.g., `"redis,imagick,memcached"`). The extensions are installed using `shivammathur/setup-php@v2`.
+
+### Pull request content validation
+
+The workflow supports automated pull request content validation using the [github-pr-contains-action](https://github.com/JJ/github-pr-contains-action) action by JJ. These checks run during the static analysis phase and only apply to pull requests. Please see JJ's documentation for additional details.
+
 
 ### CLI tool
 

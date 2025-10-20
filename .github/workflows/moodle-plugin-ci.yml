@@ -33,6 +33,34 @@ on:
         description: Path to Docker Compose file (relative to plugin repository root) for starting an additional service
         type: string
         required: false
+      pr-check-diff-contains:
+        description: Pull request diff must contain this text
+        type: string
+        required: false
+      pr-check-diff-does-not-contain:
+        description: Pull request diff must not contain this text
+        type: string
+        required: false
+      pr-check-body-contains:
+        description: Pull request body must contain this text
+        type: string
+        required: false
+      pr-check-body-does-not-contain:
+        description: Pull request body must not contain this text
+        type: string
+        required: false
+      pr-check-files-changed:
+        description: Number of files that must have changed in pull request
+        type: string
+        required: false
+      pr-check-lines-changed:
+        description: Number of lines that must have changed in pull request
+        type: string
+        required: false
+      pr-check-waived-users:
+        description: Comma-separated list of users exempt from pull request checks
+        type: string
+        required: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -300,6 +328,19 @@ jobs:
       - name: Moodle Code Checker
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpcs --max-warnings 0
+
+      - name: Pull request content checker
+        uses: JJ/github-pr-contains-action@releases/v14
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (inputs.pr-check-diff-contains != '' || inputs.pr-check-diff-does-not-contain != '' || inputs.pr-check-body-contains != '' || inputs.pr-check-body-does-not-contain != '' || inputs.pr-check-files-changed != '' || inputs.pr-check-lines-changed != '' || inputs.pr-check-waived-users != '') }}
+        with:
+          github-token: ${{ github.token }}
+          diffContains: ${{ inputs.pr-check-diff-contains }}
+          diffDoesNotContain: ${{ inputs.pr-check-diff-does-not-contain }}
+          bodyContains: ${{ inputs.pr-check-body-contains }}
+          bodyDoesNotContain: ${{ inputs.pr-check-body-does-not-contain }}
+          filesChanged: ${{ inputs.pr-check-files-changed }}
+          linesChanged: ${{ inputs.pr-check-lines-changed }}
+          waivedUsers: ${{ inputs.pr-check-waived-users }}
 
       - name: Moodle PHPDoc Checker
         if: ${{ !cancelled() }}
