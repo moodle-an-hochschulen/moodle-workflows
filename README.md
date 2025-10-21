@@ -174,6 +174,20 @@ jobs:
       behat-timeout: 3
 ```
 
+#### With SCSS deprecations disabled
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      scss-deprecations: false
+```
+
 #### With continue-on-error for code quality checks
 
 ```yaml
@@ -211,6 +225,7 @@ jobs:
 | `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
 | `phpcs-continue-on-error` | boolean | No | false | Continue on error for Moodle Code Checker (phpcs) |
 | `mustache-continue-on-error` | boolean | No | false | Continue on error for Mustache Lint |
+| `scss-deprecations` | boolean | No | true | Include SCSS deprecation warnings in Behat tests |
 
 ### Automatic Moodle core branch detection
 

@@ -79,6 +79,11 @@ on:
         type: boolean
         required: false
         default: false
+      scss-deprecations:
+        description: Include SCSS deprecation warnings in Behat tests
+        type: boolean
+        required: false
+        default: true
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -494,7 +499,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome --scss-deprecations${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
+        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
@@ -603,7 +608,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome --scss-deprecations${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
+        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
