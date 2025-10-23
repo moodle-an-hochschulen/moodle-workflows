@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2025-10-23 - Add option to select the tags to be used for running Behat tests
 * 2025-10-21 - Add option to disable SCSS deprecations in Behat tests
 * 2025-10-20 - Add option to raise the Behat timeout if the plugin requires it
 * 2025-10-20 - Add options to continue on error within the Moodle Codechecker and the Mustache Lint steps

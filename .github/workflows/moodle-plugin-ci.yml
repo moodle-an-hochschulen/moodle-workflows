@@ -37,6 +37,10 @@ on:
         description: The theme to be used for running Behat tests (e.g. "boost_union")
         type: string
         required: false
+      behat-tags:
+        description: Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between.
+        type: string
+        required: false
       behat-timeout:
         description: Behat timeout multiplier (e.g. 3 for 3x timeout)
         type: number
@@ -499,7 +503,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
+        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}${{ inputs.behat-tags != '' && format(' --tags="{0}"', inputs.behat-tags) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
@@ -608,7 +612,7 @@ jobs:
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}
+        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }}${{ inputs.behat-tags != '' && format(' --tags="{0}"', inputs.behat-tags) || '' }}
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}

@@ -174,6 +174,20 @@ jobs:
       behat-timeout: 3
 ```
 
+#### With Behat tags filtering
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      behat-tags: "@javascript"
+```
+
 #### With SCSS deprecations disabled
 
 ```yaml
@@ -215,6 +229,7 @@ jobs:
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
 | `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
+| `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
 | `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |
 | `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
 | `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
