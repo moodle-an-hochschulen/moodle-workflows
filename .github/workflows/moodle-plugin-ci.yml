@@ -173,9 +173,22 @@ jobs:
                     exit 1
                   fi
                 else
-                  echo "Error: No \$plugin->supported line found in version.php"
-                  echo "Error: Please provide an explicit 'moodle-core-branch' input parameter"
-                  exit 1
+                  echo "Warning: No \$plugin->supported line found in version.php"
+                  echo "Attempting to determine the highest available MOODLE_xxx_STABLE branch from Moodle core repository..."
+
+                  # Fetch the latest MOODLE_xxx_STABLE branches from the official Moodle repository
+                  HIGHEST_MOODLE_BRANCH=$(git ls-remote --heads https://github.com/moodle/moodle.git 'refs/heads/MOODLE_*_STABLE' | \
+                    sed 's|.*refs/heads/||' | sed 's/MOODLE_\([0-9]\+\)_STABLE/\1 &/' | \
+                    sort -n | tail -1 | awk '{print $2}')
+
+                  if [ -n "$HIGHEST_MOODLE_BRANCH" ]; then
+                    MOODLE_BRANCH="$HIGHEST_MOODLE_BRANCH"
+                    echo "Using highest available Moodle core branch: $MOODLE_BRANCH"
+                  else
+                    echo "Error: Could not determine highest MOODLE_xxx_STABLE branch from Moodle core repository"
+                    echo "Error: Please provide an explicit 'moodle-core-branch' input parameter"
+                    exit 1
+                  fi
                 fi
               else
                 echo "Error: No version.php file found in repository root"

@@ -269,7 +269,8 @@ The workflow includes an intelligent Moodle core branch detection that works as 
 1. **Explicit parameter**: If the `moodle-core-branch` parameter is provided, it is used directly
 2. **Branch pattern matching**: If the current plugin branch matches the `MOODLE_XXX_STABLE` pattern, it is used as Moodle core branch as well
 3. **Main branch handling**: If the current plugin branch is the `main` branch, the workflow searches for the highest available `MOODLE_XXX_STABLE` branch in the plugin repository and uses it as Moodle core branch
-4. **version.php parsing**: As final fallback, especially when testing feature branches with arbitrary namings, the workflow parses the `$plugin->supported` array to determine the maximum supported Moodle version and uses this as Moodle core branch
+4. **version.php parsing**: When testing feature branches with arbitrary namings, the workflow parses the `$plugin->supported` array to determine the maximum supported Moodle version and uses this as Moodle core branch
+5. **Moodle core fallback**: If no `$plugin->supported` line is found in version.php, the workflow queries the official Moodle core repository to determine the highest available `MOODLE_XXX_STABLE` branch and uses it as Moodle core branch as final fallback
 
 ### Additional services and PHP extensions
 
