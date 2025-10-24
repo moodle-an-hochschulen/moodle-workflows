@@ -33,6 +33,10 @@ on:
         description: Path to Docker Compose file (relative to plugin repository root) for starting an additional service
         type: string
         required: false
+      pre-install-script:
+        description: Custom script to run before installing moodle-plugin-ci (multiline bash script)
+        type: string
+        required: false
       behat-suite:
         description: The theme to be used for running Behat tests (e.g. "boost_union")
         type: string
@@ -337,6 +341,10 @@ jobs:
             fi
           done
 
+      - name: Run pre-install script
+        if: ${{ inputs.pre-install-script != '' }}
+        run: ${{ inputs.pre-install-script }}
+
       - name: Install moodle-plugin-ci
         run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
@@ -486,6 +494,10 @@ jobs:
             fi
           done
 
+      - name: Run pre-install script
+        if: ${{ inputs.pre-install-script != '' }}
+        run: ${{ inputs.pre-install-script }}
+
       - name: Install moodle-plugin-ci
         run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
@@ -594,6 +606,10 @@ jobs:
               moodle-plugin-ci add-plugin --branch "$branch" "$repo"
             fi
           done
+
+      - name: Run pre-install script
+        if: ${{ inputs.pre-install-script != '' }}
+        run: ${{ inputs.pre-install-script }}
 
       - name: Install moodle-plugin-ci
         run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1

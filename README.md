@@ -29,13 +29,14 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Easy plugin dependency addition** for plugins that depend on other plugins
 - **Split static and runtime jobs** to avoid running static tests unnecessarily on each PHP and database version
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
-- **Behat suite selection** to select the theme to be used for running Behat tests
+- **Behat suite and tags selection** to select the theme and the tags to be used for running Behat tests
 - **Behat timeout handling** to raise the Behat timeout if the plugin requires it
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
 - **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
+- **Flexible pre-install script** for running a custom script before installing moodle-plugin-ci
 
 ### Usage
 
@@ -128,6 +129,24 @@ jobs:
   moodle-plugin-ci:
     with:
       docker-compose-file: "tests/fixtures/bitnami-openldap-docker-compose.yaml"
+```
+
+#### With pre-install script
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      pre-install-script: |
+        # Do this.
+        touch plugin/foo
+        # Do that.
+        rm -f plugin/foo
 ```
 
 #### With pull request content checks
@@ -228,6 +247,7 @@ jobs:
 | `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
+| `pre-install-script` | string | No | - | Custom script to run before installing moodle-plugin-ci (multiline bash script) |
 | `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
 | `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
 | `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |

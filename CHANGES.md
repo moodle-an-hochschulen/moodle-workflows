@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2ß25-10-24 - Add option to run a custom script before installing moodle-plugin-ci
 * 2025-10-23 - Add option to select the tags to be used for running Behat tests
 * 2025-10-21 - Add option to disable SCSS deprecations in Behat tests
 * 2025-10-20 - Add option to raise the Behat timeout if the plugin requires it
