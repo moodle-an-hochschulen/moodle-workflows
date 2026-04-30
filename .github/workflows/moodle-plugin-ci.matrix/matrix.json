@@ -27,6 +27,10 @@
         "php": ["8.2", "8.3", "8.4"],
         "database": ["pgsql", "mariadb"]
     },
+    "MOODLE_502_STABLE": {
+        "php": ["8.3", "8.4"],
+        "database": ["pgsql", "mariadb"]
+    },
     "main": {
         "php": ["8.3", "8.4"],
         "database": ["pgsql", "mariadb"]
