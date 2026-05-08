@@ -92,6 +92,16 @@ on:
         type: boolean
         required: false
         default: true
+    secrets:
+      # This generic secrets can be used to pass github repository secrets to moodle
+      GENERIC_USERNAME_1:
+        required: false
+      GENERIC_PASSWORD_1:
+        required: false
+      GENERIC_USERNAME_2:
+        required: false
+      GENERIC_PASSWORD_2:
+        required: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -446,7 +456,11 @@ jobs:
     name: Runtime tests
     runs-on: ubuntu-22.04
     needs: preflight
-
+    env:
+      GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
+      GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
+      GENERIC_USERNAME_2: ${{ secrets.GENERIC_USERNAME_2 }}
+      GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
     services:
       postgres:
         image: postgres:16
@@ -547,6 +561,11 @@ jobs:
     name: Runtime verification
     runs-on: ubuntu-22.04
     needs: [preflight, run]
+    env:
+      GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
+      GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
+      GENERIC_USERNAME_2: ${{ secrets.GENERIC_USERNAME_2 }}
+      GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
 
     services:
       postgres:
