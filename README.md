@@ -37,6 +37,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
 - **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
 - **Flexible pre-install script** for running a custom script before installing moodle-plugin-ci
+- **Generic secrets support** to pass up to two username/password credential pairs from your repository secrets into the test environment
 
 ### Usage
 
@@ -262,6 +263,15 @@ jobs:
 | `mustache-continue-on-error` | boolean | No | false | Continue on error for Mustache Lint |
 | `scss-deprecations` | boolean | No | true | Include SCSS deprecation warnings in Behat tests |
 
+### Available secrets
+
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `GENERIC_USERNAME_1` | No | Generic secret to pass a username to the workflow, if needed |
+| `GENERIC_PASSWORD_1` | No | Generic secret to pass a password to the workflow, if needed |
+| `GENERIC_USERNAME_2` | No | Generic secret to pass another username to the workflow, if needed |
+| `GENERIC_PASSWORD_2` | No | Generic secret to pass another password to the workflow, if needed |
+
 ### Automatic Moodle core branch detection
 
 The workflow includes an intelligent Moodle core branch detection that works as follows:
@@ -288,6 +298,73 @@ Use the `php-extensions` parameter to install additional PHP extensions needed b
 ### Pull request content validation
 
 The workflow supports automated pull request content validation using the [github-pr-contains-action](https://github.com/JJ/github-pr-contains-action) action by JJ. These checks run during the static analysis phase and only apply to pull requests. Please see JJ's documentation for additional details.
+
+### Passing secrets to the workflow
+
+Some plugins require credentials during test execution, for example to connect to an external service such as an LDAP server or a third-party API. If you do not want to add these credentials into the plugin's PHPUnit test files or into the plugin's Behat feature files directly, you can add them to GitHub secrets and use these secrets in your GitHub Actions workflow afterwards.
+
+The problem is that GitHub does not automatically pass secrets to a reusable workflow, at least not across GitHub organizations. Thus, you have to pass them actively within your workflow definition.
+
+Against this background, this workflow supports passing up to two username/password pairs from your plugin repository secrets into the test environment via the four optional secrets `GENERIC_USERNAME_1`, `GENERIC_PASSWORD_1`, `GENERIC_USERNAME_2`, and `GENERIC_PASSWORD_2`.
+
+These secrets are exposed as environment variables of the same name in both the runtime tests job and the runtime verification job. They are not available during static analysis.
+
+#### Usage example to call the workflow with generic secrets
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
+    with:
+      moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
+    secrets:
+      GENERIC_USERNAME_1: ${{ secrets.MY_SERVICE_USERNAME }}
+      GENERIC_PASSWORD_1: ${{ secrets.MY_SERVICE_PASSWORD }}
+```
+
+This example would pick the secrets `MY_SERVICE_USERNAME` and `MY_SERVICE_PASSWORD` from your plugin repository and pass them into the reusable workflow. There, inside your tests, the values are then available as the environment variables `GENERIC_USERNAME_1` and `GENERIC_PASSWORD_1` respectively.
+
+While the names of `MY_SERVICE_USERNAME` and `MY_SERVICE_PASSWORD` are up to your choice and can be aligned to your needs, the names `GENERIC_USERNAME_1` and `GENERIC_PASSWORD_1` are fixed.
+
+#### Using generic secrets in Behat step definitions
+
+If you want to use the generic secrets in a Behat feature, you can create a custom Behat step.
+
+In your plugin's Behat step definitions, read the secrets with PHP's `getenv()` function. It is recommended to validate that the variables are actually set and throw an `ExpectationException` with a clear message if they are not – otherwise Behat would silently use empty credentials and produce confusing test failures.
+
+```php
+/**
+ * Sets the credentials for connecting to the external service.
+ *
+ * @Given /^I set the external service credentials$/
+ * @return void
+ */
+public function i_set_the_external_service_credentials(): void {
+    $username = getenv('GENERIC_USERNAME_1');
+    $password = getenv('GENERIC_PASSWORD_1');
+
+    if ($username === false || $username === '') {
+        throw new ExpectationException(
+            'GENERIC_USERNAME_1 is not set.',
+            $this->getSession(),
+        );
+    }
+    if ($password === false || $password === '') {
+        throw new ExpectationException(
+            'GENERIC_PASSWORD_1 is not set.',
+            $this->getSession(),
+        );
+    }
+
+    set_config('myservice_user', $username, 'local_myplugin');
+    set_config('myservice_password', $password, 'local_myplugin');
+}
+```
 
 ### CLI tool
 

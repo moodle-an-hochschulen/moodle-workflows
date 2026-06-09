@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-06-09 - Add possibility to pass secrets to the workflow
 * 2025-10-24 - Add Moodle core repository branch detection as final fallback to automatic branch detection
 * 2025-10-24 - Add option to run a custom script before installing moodle-plugin-ci
 * 2025-10-23 - Add option to select the tags to be used for running Behat tests
