@@ -92,6 +92,19 @@ on:
         type: boolean
         required: false
         default: true
+    secrets:
+      GENERIC_USERNAME_1:
+        description: Generic secret to pass a username to the workflow, if needed
+        required: false
+      GENERIC_PASSWORD_1:
+        description: Generic secret to pass a password to the workflow, if needed
+        required: false
+      GENERIC_USERNAME_2:
+        description: Generic secret to pass another username to the workflow, if needed
+        required: false
+      GENERIC_PASSWORD_2:
+        description: Generic secret to pass another password to the workflow, if needed
+        required: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
@@ -446,7 +459,11 @@ jobs:
     name: Runtime tests
     runs-on: ubuntu-22.04
     needs: preflight
-
+    env:
+      GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
+      GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
+      GENERIC_USERNAME_2: ${{ secrets.GENERIC_USERNAME_2 }}
+      GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
     services:
       postgres:
         image: postgres:16
@@ -547,6 +564,11 @@ jobs:
     name: Runtime verification
     runs-on: ubuntu-22.04
     needs: [preflight, run]
+    env:
+      GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
+      GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
+      GENERIC_USERNAME_2: ${{ secrets.GENERIC_USERNAME_2 }}
+      GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
 
     services:
       postgres:
