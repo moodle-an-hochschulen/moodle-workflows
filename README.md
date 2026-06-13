@@ -31,6 +31,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
 - **Behat suite and tags selection** to select the theme and the tags to be used for running Behat tests
 - **Behat timeout handling** to raise the Behat timeout if the plugin requires it
+- **Behat parallelization** to split the Behat run across multiple parallel jobs, distributing the plugin's feature files by scenario count to shorten the overall runtime
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -208,6 +209,20 @@ jobs:
       behat-tags: "@javascript"
 ```
 
+#### With parallel Behat slices
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      behat-slices: 4
+```
+
 #### With SCSS deprecations disabled
 
 ```yaml
@@ -252,6 +267,7 @@ jobs:
 | `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
 | `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
 | `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |
+| `behat-slices` | number | No | 1 | Number of parallel Behat slices to split the Behat run across (1 = no splitting). Each slice runs a subset of the plugin's Behat feature files in its own job, distributed by scenario count. |
 | `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
 | `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
 | `pr-check-body-contains` | string | No | - | Pull request body must contain this text |
@@ -365,6 +381,22 @@ public function i_set_the_external_service_credentials(): void {
     set_config('myservice_password', $password, 'local_myplugin');
 }
 ```
+
+### Behat parallelization
+
+For plugins with a large Behat test suite, the overall runtime can be shortened by splitting the Behat run across several parallel jobs. Set `behat-slices` to the number of slices you want (e.g. `behat-slices: 4`); the default of `1` keeps the Behat run in a single job.
+
+How it works:
+
+1. Before installing the plugin, the workflow scans the plugin's `tests/behat/*.feature` files (including those of subplugins), counts the scenarios in each and distributes the files across the requested number of slices using a greedy, scenario-count-weighted algorithm. This keeps the slices balanced even when feature files differ a lot in size.
+2. Each feature file gets an additional `@behat_slice_<n>` tag on its tag line. Because the distribution is deterministic, every slice job computes the exact same assignment.
+3. The runtime test jobs (run and verify) are multiplied by the number of slices, and each slice job runs Behat filtered to its own `@behat_slice_<n>` tag. If you also provide `behat-tags`, your tags and the slice tag are combined so that both conditions must match.
+
+Notes:
+
+- The splitting happens per feature file, not per scenario. A single feature file always runs within one slice.
+- If you configure more slices than the plugin has feature files, the surplus slice jobs will simply run no scenarios (and pass quickly). Choose a slice count that fits the number of feature files.
+- Slicing applies to both the run and the verify job, so the total number of runtime jobs grows accordingly. Combine it with `max-parallel-verify` if you want to limit how many verify jobs run at the same time.
 
 ### CLI tool
 
