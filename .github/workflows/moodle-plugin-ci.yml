@@ -503,157 +503,23 @@ jobs:
       matrix: ${{ fromJson(needs.preflight.outputs.matrix-run) }}
 
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-        with:
-          path: plugin
-
-      - name: Start additional service from Docker Compose
-        if: ${{ inputs.docker-compose-file != '' }}
-        uses: adambirds/docker-compose-action@v1.5.0
-        with:
-          compose-file: ${{ github.workspace }}/plugin/${{ inputs.docker-compose-file }}
-
-      - name: Setup PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+      - name: Run moodle runtime tests
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/moodle-runtime-tests@main
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
-          ini-values: max_input_vars=5000
-          coverage: none
-
-      - name: Initialise moodle-plugin-ci
-        run: |
-          composer create-project -n --no-dev --prefer-dist moodlehq/moodle-plugin-ci ci ^4
-          echo $(cd ci/bin; pwd) >> $GITHUB_PATH
-          echo $(cd ci/vendor/bin; pwd) >> $GITHUB_PATH
-          sudo locale-gen en_AU.UTF-8
-          echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
-
-      - name: Add plugin dependencies
-        if: ${{ inputs.plugin-dependencies != '' }}
-        run: |
-          # Process plugin dependencies line by line, skipping empty lines
-          echo "${{ inputs.plugin-dependencies }}" | while IFS=',' read -r repo branch; do
-            # Skip empty lines
-            if [ -n "$repo" ] && [ -n "$branch" ]; then
-              echo "Adding plugin dependency: $repo (branch: $branch)"
-              moodle-plugin-ci add-plugin --branch "$branch" "$repo"
-            fi
-          done
-
-      - name: Run pre-install script
-        if: ${{ inputs.pre-install-script != '' }}
-        run: ${{ inputs.pre-install-script }}
-
-      # Tag the plugin's Behat feature files with @behat_slice_<n> so that each parallel slice
-      # job can run its own subset later. This must happen before the install step because
-      # moodle-plugin-ci mirrors (copies) the plugin into the Moodle tree during install.
-      - name: Distribute Behat features into slices
-        if: ${{ inputs.behat-slices > 1 }}
-        run: |
-          SLICES=${{ inputs.behat-slices }}
-          echo "Distributing Behat feature files across $SLICES slices (greedy, weighted by scenario count)..."
-
-          # Initialise per-slice scenario load counters.
-          declare -a load
-          for ((s = 0; s < SLICES; s++)); do
-            load[$s]=0
-          done
-
-          # Collect the plugin's feature files with their scenario counts, heaviest first
-          # (deterministic tie-break by path so every slice job computes the same assignment).
-          mapfile -t entries < <(
-            find plugin -path '*/tests/behat/*.feature' -type f -print0 |
-              while IFS= read -r -d '' f; do
-                c=$(grep -cE '^[[:space:]]*(Scenario:|Scenario Outline:)' "$f" || true)
-                printf '%s\t%s\n' "$c" "$f"
-              done | sort -t"$(printf '\t')" -k1,1nr -k2,2
-          )
-
-          if [ ${#entries[@]} -eq 0 ]; then
-            echo "No Behat feature files found to distribute, nothing to do."
-            exit 0
-          fi
-
-          # Greedy bin-packing: assign each feature file to the currently least-loaded slice.
-          for entry in "${entries[@]}"; do
-            count=${entry%%$'\t'*}
-            file=${entry#*$'\t'}
-
-            min=0
-            for ((s = 1; s < SLICES; s++)); do
-              if [ "${load[$s]}" -lt "${load[$min]}" ]; then
-                min=$s
-              fi
-            done
-
-            # Append the slice tag to line 1, which is a tag line by Moodle feature file convention.
-            sed -i "1 s/\$/ @behat_slice_${min}/" "$file"
-            load[$min]=$(( load[$min] + count ))
-            echo "  slice ${min}  (+${count} scenarios)  ${file}"
-          done
-
-          echo "Resulting scenario load per slice:"
-          for ((s = 0; s < SLICES; s++)); do
-            echo "  slice ${s}: ${load[$s]} scenarios"
-          done
-
-      - name: Install moodle-plugin-ci
-        run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
-        env:
-          DB: ${{ matrix.database }}
-          MOODLE_BRANCH: ${{ matrix.moodle-core-branch }}
-
-      - name: PHPUnit tests
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpunit --fail-on-warning
-
-      - name: Raise Behat timeout
-        if: ${{ !cancelled() && inputs.behat-timeout != '' }}
-        run: moodle-plugin-ci add-config '$CFG->behat_increasetimeout = ${{ inputs.behat-timeout }};'
-
-      # Combine the configured Behat tags (if any) with this job's slice tag (if slicing is active)
-      # and expose the result as BEHAT_TAGS for the Behat step. The slice tag is ANDed into every
-      # comma-separated OR-group so that "(@a,@b)" becomes "@a&&@slice,@b&&@slice".
-      - name: Compose Behat tags
-        if: ${{ !cancelled() }}
-        run: |
-          TAGS='${{ inputs.behat-tags }}'
-          SLICE='${{ matrix.behat-slice }}'
-          if [ -n "$SLICE" ]; then
-            if [ -n "$TAGS" ]; then
-              composed=''
-              IFS=',' read -ra groups <<< "$TAGS"
-              for g in "${groups[@]}"; do
-                [ -n "$composed" ] && composed="$composed,"
-                composed="${composed}${g}&&@behat_slice_${SLICE}"
-              done
-              TAGS="$composed"
-            else
-              TAGS="@behat_slice_${SLICE}"
-            fi
-          fi
-          echo "BEHAT_TAGS=$TAGS" >> "$GITHUB_ENV"
-          echo "Using Behat tags: ${TAGS:-(none, moodle-plugin-ci default component tag applies)}"
-
-      - name: Behat features
-        id: behat
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"}
-
-      - name: Upload Behat Faildump
-        if: ${{ failure() && steps.behat.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Behat Faildump (${{ join(matrix.*, ', ') }})
-          path: ${{ github.workspace }}/moodledata/behat_dump
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Mark cancelled jobs as failed.
-        if: ${{ cancelled() }}
-        run: exit 1
+          database: ${{ matrix.database }}
+          moodle-core-branch: ${{ matrix.moodle-core-branch }}
+          behat-slice: ${{ matrix.behat-slice }}
+          matrix-artifact-label: ${{ join(matrix.*, ', ') }}
+          docker-compose-file: ${{ inputs.docker-compose-file }}
+          plugin-dependencies: ${{ inputs.plugin-dependencies }}
+          pre-install-script: ${{ inputs.pre-install-script }}
+          behat-slices: ${{ inputs.behat-slices }}
+          behat-timeout: ${{ inputs.behat-timeout }}
+          behat-tags: ${{ inputs.behat-tags }}
+          behat-suite: ${{ inputs.behat-suite }}
+          scss-deprecations: ${{ inputs.scss-deprecations }}
 
   verify:
     name: Runtime verification
@@ -698,154 +564,20 @@ jobs:
       matrix: ${{ fromJson(needs.preflight.outputs.matrix-verify) }}
 
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-        with:
-          path: plugin
-
-      - name: Start additional service from Docker Compose
-        if: ${{ inputs.docker-compose-file != '' }}
-        uses: adambirds/docker-compose-action@v1.5.0
-        with:
-          compose-file: ${{ github.workspace }}/plugin/${{ inputs.docker-compose-file }}
-
-      - name: Setup PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+      - name: Run moodle runtime tests
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/moodle-runtime-tests@main
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
-          ini-values: max_input_vars=5000
-          coverage: none
-
-      - name: Initialise moodle-plugin-ci
-        run: |
-          composer create-project -n --no-dev --prefer-dist moodlehq/moodle-plugin-ci ci ^4
-          echo $(cd ci/bin; pwd) >> $GITHUB_PATH
-          echo $(cd ci/vendor/bin; pwd) >> $GITHUB_PATH
-          sudo locale-gen en_AU.UTF-8
-          echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
-
-      - name: Add plugin dependencies
-        if: ${{ inputs.plugin-dependencies != '' }}
-        run: |
-          # Process plugin dependencies line by line, skipping empty lines
-          echo "${{ inputs.plugin-dependencies }}" | while IFS=',' read -r repo branch; do
-            # Skip empty lines
-            if [ -n "$repo" ] && [ -n "$branch" ]; then
-              echo "Adding plugin dependency: $repo (branch: $branch)"
-              moodle-plugin-ci add-plugin --branch "$branch" "$repo"
-            fi
-          done
-
-      - name: Run pre-install script
-        if: ${{ inputs.pre-install-script != '' }}
-        run: ${{ inputs.pre-install-script }}
-
-      # Tag the plugin's Behat feature files with @behat_slice_<n> so that each parallel slice
-      # job can run its own subset later. This must happen before the install step because
-      # moodle-plugin-ci mirrors (copies) the plugin into the Moodle tree during install.
-      - name: Distribute Behat features into slices
-        if: ${{ inputs.behat-slices > 1 }}
-        run: |
-          SLICES=${{ inputs.behat-slices }}
-          echo "Distributing Behat feature files across $SLICES slices (greedy, weighted by scenario count)..."
-
-          # Initialise per-slice scenario load counters.
-          declare -a load
-          for ((s = 0; s < SLICES; s++)); do
-            load[$s]=0
-          done
-
-          # Collect the plugin's feature files with their scenario counts, heaviest first
-          # (deterministic tie-break by path so every slice job computes the same assignment).
-          mapfile -t entries < <(
-            find plugin -path '*/tests/behat/*.feature' -type f -print0 |
-              while IFS= read -r -d '' f; do
-                c=$(grep -cE '^[[:space:]]*(Scenario:|Scenario Outline:)' "$f" || true)
-                printf '%s\t%s\n' "$c" "$f"
-              done | sort -t"$(printf '\t')" -k1,1nr -k2,2
-          )
-
-          if [ ${#entries[@]} -eq 0 ]; then
-            echo "No Behat feature files found to distribute, nothing to do."
-            exit 0
-          fi
-
-          # Greedy bin-packing: assign each feature file to the currently least-loaded slice.
-          for entry in "${entries[@]}"; do
-            count=${entry%%$'\t'*}
-            file=${entry#*$'\t'}
-
-            min=0
-            for ((s = 1; s < SLICES; s++)); do
-              if [ "${load[$s]}" -lt "${load[$min]}" ]; then
-                min=$s
-              fi
-            done
-
-            # Append the slice tag to line 1, which is a tag line by Moodle feature file convention.
-            sed -i "1 s/\$/ @behat_slice_${min}/" "$file"
-            load[$min]=$(( load[$min] + count ))
-            echo "  slice ${min}  (+${count} scenarios)  ${file}"
-          done
-
-          echo "Resulting scenario load per slice:"
-          for ((s = 0; s < SLICES; s++)); do
-            echo "  slice ${s}: ${load[$s]} scenarios"
-          done
-
-      - name: Install moodle-plugin-ci
-        run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
-        env:
-          DB: ${{ matrix.database }}
-          MOODLE_BRANCH: ${{ matrix.moodle-core-branch }}
-
-      - name: PHPUnit tests
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpunit --fail-on-warning
-
-      - name: Raise Behat timeout
-        if: ${{ !cancelled() && inputs.behat-timeout != '' }}
-        run: moodle-plugin-ci add-config '$CFG->behat_increasetimeout = ${{ inputs.behat-timeout }};'
-
-      # Combine the configured Behat tags (if any) with this job's slice tag (if slicing is active)
-      # and expose the result as BEHAT_TAGS for the Behat step. The slice tag is ANDed into every
-      # comma-separated OR-group so that "(@a,@b)" becomes "@a&&@slice,@b&&@slice".
-      - name: Compose Behat tags
-        if: ${{ !cancelled() }}
-        run: |
-          TAGS='${{ inputs.behat-tags }}'
-          SLICE='${{ matrix.behat-slice }}'
-          if [ -n "$SLICE" ]; then
-            if [ -n "$TAGS" ]; then
-              composed=''
-              IFS=',' read -ra groups <<< "$TAGS"
-              for g in "${groups[@]}"; do
-                [ -n "$composed" ] && composed="$composed,"
-                composed="${composed}${g}&&@behat_slice_${SLICE}"
-              done
-              TAGS="$composed"
-            else
-              TAGS="@behat_slice_${SLICE}"
-            fi
-          fi
-          echo "BEHAT_TAGS=$TAGS" >> "$GITHUB_ENV"
-          echo "Using Behat tags: ${TAGS:-(none, moodle-plugin-ci default component tag applies)}"
-
-      - name: Behat features
-        id: behat
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"}
-
-      - name: Upload Behat Faildump
-        if: ${{ failure() && steps.behat.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Behat Faildump (${{ join(matrix.*, ', ') }})
-          path: ${{ github.workspace }}/moodledata/behat_dump
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Mark cancelled jobs as failed.
-        if: ${{ cancelled() }}
-        run: exit 1
+          database: ${{ matrix.database }}
+          moodle-core-branch: ${{ matrix.moodle-core-branch }}
+          behat-slice: ${{ matrix.behat-slice }}
+          matrix-artifact-label: ${{ join(matrix.*, ', ') }}
+          docker-compose-file: ${{ inputs.docker-compose-file }}
+          plugin-dependencies: ${{ inputs.plugin-dependencies }}
+          pre-install-script: ${{ inputs.pre-install-script }}
+          behat-slices: ${{ inputs.behat-slices }}
+          behat-timeout: ${{ inputs.behat-timeout }}
+          behat-tags: ${{ inputs.behat-tags }}
+          behat-suite: ${{ inputs.behat-suite }}
+          scss-deprecations: ${{ inputs.scss-deprecations }}
