@@ -112,7 +112,7 @@ on:
         required: false
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}-${{ inputs.moodle-core-branch || 'auto' }}
   cancel-in-progress: true
 
 jobs:
