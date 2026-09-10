@@ -6,6 +6,8 @@ Changes
 
 ### Rolling release
 
+* 2026-09-18 - Update moodle-release workflow to use the new Moodle Marketplace API
+               ACTION REQUIRED: If you use this workflow in your Moodle plugin repos, have a look at https://github.com/moodle-an-hochschulen/moodle-workflows#moodle-release-workflow for understanding the necessary transition steps
 * 2026-09-14 - Add options to tolerate a known number of warnings in the Moodle Code Checker, Moodle PHPDoc Checker and Grunt steps
 * 2026-06-12 - Add option to split the Behat run across multiple parallel slices
 * 2026-06-09 - Add possibility to pass secrets to the workflow

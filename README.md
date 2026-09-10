@@ -458,18 +458,23 @@ export GITHUB_TOKEN=your_token_here
 moodle-release workflow
 ----------------------
 
-An automated release workflow for publishing Moodle plugins to the official [Moodle plugins directory](https://moodle.org/plugins) based on the [moodle-plugin-release](https://github.com/moodlehq/moodle-plugin-release) tool.
+An automated release workflow for publishing Moodle plugins to the [Moodle Marketplace](https://marketplace.moodle.com/) based on Moodle HQ's [moodle-plugin-release](https://github.com/moodlehq/moodle-plugin-release) tool.
 
-### Enhanced features beyond standard moodle-plugin-release
+### Heads-up
 
-- **Automatic plugin name detection** from the Plugin repository name
+Before you add this workflow to your plugin, you should note the following:
+
+Since the [transition of the good old Moodle plugins directory to the Moodle Marketplace](https://moodle.com/news/moodle-marketplace-is-here/), this workflow does not provide an additional benefit to the official Moodle HQ solution anymore.
+
+It is just kept and maintained as glue code to make sure that existing plugin repositories which already used this workflow to publish to the good old Moodle plugins directory do not have to update all of their Github action workflows.
+
+If you intend to add this workflow to a new plugin, please consider using the [Moodle HQ workflow](https://github.com/moodlehq/moodle-plugin-release) directly instead.
+
 
 ### Usage
 
 Create a workflow file in your plugin repository at `.github/workflows/moodle-release.yml`:
 
-#### With automated plugin name detection (recommended)
-
 ```yaml
 name: Moodle Plugin Release
 
@@ -486,30 +491,6 @@ on:
 jobs:
   release:
     uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-release.yml@main
-    secrets:
-      MOODLE_ORG_TOKEN: ${{ secrets.MOODLE_ORG_TOKEN }}
-```
-
-#### With manual plugin name definition
-
-```yaml
-name: Moodle Plugin Release
-
-on:
-  push:
-    tags:
-      - v*
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Git tag to be released'
-        required: true
-
-jobs:
-  release:
-    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-release.yml@main
-    with:
-      plugin-name: theme_boost_union
     secrets:
       MOODLE_ORG_TOKEN: ${{ secrets.MOODLE_ORG_TOKEN }}
 ```
@@ -518,25 +499,41 @@ jobs:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `plugin-name` | string | No | auto-detected | Plugin frankenstyle name (if not provided, it will be auto-detected from the repository name) |
+| `tag` | string | No | The tag from the triggering event | Git tag to be released. You normally do not need to set this: on a tag push as well as on a `workflow_dispatch` run with a `tag` input, the workflow picks the tag up on its own. |
+| `plugin-name` | string | No | - | Deprecated and ignored, see the notes below. |
 
 ### Required Github actions secrets
 
 | Secret | Description |
 |--------|-------------|
-| `MOODLE_ORG_TOKEN` | API token for Moodle.org plugins directory (see https://moodledev.io/general/community/plugincontribution/pluginsdirectory/api#access-token for help) |
+| `MOODLE_ORG_TOKEN` | API token for Moodle Marketplace (see https://moodledev.io/general/community/plugincontribution/moodlemarketplaceapi#create-an-api-token for help) |
 
-### Repository naming convention
+### Important note about the token naming
 
-For automatic plugin name detection to work, the plugin repository must follow the naming convention:
+The Moodle HQ workflow to publish to the good old Moodle plugins directory required a `MOODLE_ORG_TOKEN` secret while the Moodle Marketplace requires a `MOODLE_MARKETPLACE_TOKEN` secret.
 
-`moodle-<frankenstyle_pluginname>`
+This workflow here continues to expect a `MOODLE_ORG_TOKEN` secret so that you do not have to change anything in your caller workflows.
 
-#### Examples
+That `MOODLE_ORG_TOKEN` secret from your plugin is mapped to the `MOODLE_MARKETPLACE_TOKEN` secret before calling the Moodle HQ tool.
 
-- `moodle-local_mylocalplugin` → Plugin name: `local_mylocalplugin`
-- `moodle-mod_customactivity` → Plugin name: `mod_customactivity`
-- `moodle-theme_mytheme` → Plugin name: `theme_mytheme`
+### How to transition existing repositories to releasing to the Moodle Marketplace
+
+If you have a plugin repository which used this workflow successfully before to publish to the good old Moodle plugins directory, these are the steps to transition your release process to the Moodle Marketplace:
+
+* Login to the [Moodle Marketplace](https://marketplace.moodle.com/) with your Moodle Marketplace account (which has the rights to publish new releases of the particular plugin, of course).
+* Go to the [Account security page](https://marketplace.moodle.com/account/security).
+* Create a new token without an expiry date.
+* Go to your Github repository's or organization's actions secrets management page.
+* Update the value of the existing `MOODLE_ORG_TOKEN` secret and set the token which you just created in the Moodle Marketplace as its new content.
+* (Sometime later) Try to publish a new release by pushing a new tag to Github.
+
+### More things to know about the Moodle Marketplace release process
+
+Compared to the previous release process which published to the good old Moodle plugins directory, the Moodle HQ tool works differently in some aspects which are relevant for your plugin repository:
+
+* The plugin's frankenstyle name is not derived from the Github repository name anymore. It is read from the `$plugin->component` setting in the `version.php` file in the root of your plugin repository. Your repository does not have to follow the `moodle-<frankenstyle_pluginname>` naming convention anymore. Consequently, the `plugin-name` parameter of this workflow has become pointless. It is still accepted, but ignored, so that plugin repositories which set it do not break. You can remove it from your caller workflow at any time.
+* Your ZIP package is not downloaded from Github anymore. It is built within the workflow run from the tagged code with `git archive`. If your repository ships a `.gitattributes` file with `export-ignore` entries, these files will not be part of the released ZIP package.
+* The release notes are taken from the description of the Github release which belongs to the tag. If you just push a tag without creating a Github release for it, the plugin version will be published without any release notes.
 
 
 Bug and problem reports / Support requests
