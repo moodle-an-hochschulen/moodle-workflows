@@ -6,6 +6,8 @@ Changes
 
 ### Rolling release
 
+* 2026-06-25 - Improve CI concurrency to deduplicate push and pull request runs on the same branch (use `tags-ignore` in the caller workflow's `on: push` trigger to avoid duplicate runs on release)
+* 2026-06-24 - Deduplicate runtime test steps in `run` and `verify` jobs via Composite Action
 * 2026-06-12 - Add option to split the Behat run across multiple parallel slices
 * 2026-06-09 - Add possibility to pass secrets to the workflow
 * 2025-10-24 - Add Moodle core repository branch detection as final fallback to automatic branch detection

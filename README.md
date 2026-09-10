@@ -32,7 +32,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Behat suite and tags selection** to select the theme and the tags to be used for running Behat tests
 - **Behat timeout handling** to raise the Behat timeout if the plugin requires it
 - **Behat parallelization** to split the Behat run across multiple parallel jobs, distributing the plugin's feature files by scenario count to shorten the overall runtime
-- **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
+- **Concurrency handling** to cancel superseded runs on the same branch and deduplicate push and pull request runs on the same branch (configure `tags-ignore` in the caller workflow's `on: push` trigger to avoid duplicate runs on release)
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
@@ -51,6 +51,8 @@ name: Moodle Plugin CI
 
 on:
   push:
+    branches: ['**']
+    tags-ignore: ['**']
   pull_request:
   workflow_dispatch:
     inputs:
