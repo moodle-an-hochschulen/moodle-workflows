@@ -36,6 +36,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Behat web server supervision** to restart the PHP web server automatically if it crashes during the Behat run, so that a single crash no longer fails the whole job
 - **Flaky Behat scenario reporting** to print a warning and to keep the Behat faildump if scenarios failed in the first attempt and only passed in the automatic rerun
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
+- **Non-code change skipping** to skip expensive static and runtime jobs for empty diffs or changes limited to configurable exact file paths (README/CHANGES files by default), while keeping configured pull request content checks in preflight
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
@@ -73,6 +74,30 @@ jobs:
     with:
       moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
 ```
+
+#### Skipping non-code changes
+
+For push and pull request events, preflight skips static checks, runtime tests, and runtime verification when the diff is empty or every changed file is in `non-code-paths`. Configured pull request content checks still run in preflight. Push events compare the before/after commits; pull requests compare the complete branch diff from the merge base.
+
+The default list contains only root-level `README`, `README.md`, `README.txt`, `CHANGES`, `CHANGES.md`, `CHANGES.txt`, and `CHANGES.html`. Configuration files, license files, nested documentation, and unknown paths run code tests unless explicitly listed by the caller.
+
+Override the list in the caller workflow:
+
+```yaml
+jobs:
+  moodle-plugin-ci:
+    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
+    with:
+      non-code-paths: |
+        README.md
+        CHANGES.md
+        CONTRIBUTING.md
+        docs/usage.md
+```
+
+This replaces the defaults; include every path you want to skip. Paths are case-sensitive, relative to the repository root, and matched exactly (no glob patterns). Set `non-code-paths: ''` to run code tests for every non-empty diff. Empty diffs still skip code tests. Manual/repository dispatches, new-branch pushes without a before commit, and unavailable diffs run code tests. Renames check both the old and new paths.
+
+Unlike caller `paths-ignore`, this keeps the workflow running and produces successful preflight and skipped code-test checks for documentation-only changes.
 
 #### More sophisticated setups
 
@@ -311,6 +336,7 @@ jobs:
 | Parameter | Type | Required | Default | Configuration variable | Description |
 |-----------|------|----------|---------|------------------------|-------------|
 | `moodle-core-branch` | string | No | auto-detected | None | Run the tests on this Moodle core branch (if not provided, the branch will be auto-detected from current branch) |
+| `non-code-paths` | string | No | Root README/CHANGES files | None | Newline-separated exact repository-relative paths that do not require code tests; replaces the defaults. Empty disables file-based skipping. |
 | `plugin-dependencies` | string | No | - | None | List of plugin dependencies with repository and branch (use one dependency per line and separate repository and branch with a comma) |
 | `one-db-only` | boolean | No | false | None | Use only PostgreSQL database instead of all configured databases |
 | `max-parallel-verify` | number | No | unlimited | None | Maximum number of parallel jobs for the verify job (can be useful if you have really long running Behat tests and do not want to block too many runners at the same time) |

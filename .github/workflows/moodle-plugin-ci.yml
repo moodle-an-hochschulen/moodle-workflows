@@ -7,6 +7,18 @@ on:
         description: Run the tests on this Moodle core branch (if not provided, the branch will be auto-detected from current branch)
         type: string
         required: false
+      non-code-paths:
+        description: Newline-separated exact repository-relative paths which do not require code tests (replaces the default list; empty disables non-code file skipping)
+        type: string
+        required: false
+        default: |
+          README
+          README.md
+          README.txt
+          CHANGES
+          CHANGES.md
+          CHANGES.txt
+          CHANGES.html
       plugin-dependencies:
         description: List of plugin dependencies with repository and branch (use one dependency per line and separate repository and branch with a comma)
         type: string
@@ -156,6 +168,7 @@ jobs:
       mustache-continue-on-error: ${{ steps.resolve-inputs.outputs.mustache-continue-on-error }}
       scss-deprecations: ${{ steps.resolve-inputs.outputs.scss-deprecations }}
       behat-strict: ${{ steps.resolve-inputs.outputs.behat-strict }}
+      code-changes: ${{ steps.detect-code-changes.outputs.code-changes }}
     steps:
       - name: Checkout calling plugin repository
         uses: actions/checkout@v6
@@ -163,6 +176,56 @@ jobs:
           fetch-depth: 0
           path: calling-repo
           persist-credentials: false
+
+      - name: Pull request content checker
+        uses: JJ/github-pr-contains-action@releases/v14
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && (inputs.pr-check-diff-contains != '' || inputs.pr-check-diff-does-not-contain != '' || inputs.pr-check-body-contains != '' || inputs.pr-check-body-does-not-contain != '' || inputs.pr-check-files-changed != '' || inputs.pr-check-lines-changed != '' || inputs.pr-check-waived-users != '') }}
+        with:
+          github-token: ${{ github.token }}
+          diffContains: ${{ inputs.pr-check-diff-contains }}
+          diffDoesNotContain: ${{ inputs.pr-check-diff-does-not-contain }}
+          bodyContains: ${{ inputs.pr-check-body-contains }}
+          bodyDoesNotContain: ${{ inputs.pr-check-body-does-not-contain }}
+          filesChanged: ${{ inputs.pr-check-files-changed }}
+          linesChanged: ${{ inputs.pr-check-lines-changed }}
+          waivedUsers: ${{ inputs.pr-check-waived-users }}
+
+      - name: Detect code changes
+        id: detect-code-changes
+        env:
+          NON_CODE_PATHS: ${{ inputs.non-code-paths }}
+        run: |
+          # Skip expensive jobs only when every changed file is known to be non-code.
+          # Unknown files and diff errors are treated as code changes.
+          CODE=true
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "push" ] || [ "$EVENT" = "pull_request" ]; then
+            if [ "$EVENT" = "pull_request" ]; then
+              BEFORE="${{ github.event.pull_request.base.sha }}"
+              AFTER="${{ github.event.pull_request.head.sha }}"
+              RANGE="$BEFORE...$AFTER"
+            else
+              BEFORE="${{ github.event.before }}"
+              AFTER="${{ github.sha }}"
+              RANGE="$BEFORE..$AFTER"
+            fi
+            ZERO=0000000000000000000000000000000000000000
+            if [ -n "$BEFORE" ] && [ -n "$AFTER" ] && [ "$BEFORE" != "$ZERO" ]; then
+              if CHANGED=$(git -C calling-repo diff --no-renames --name-only "$RANGE"); then
+                CODE=false
+                while IFS= read -r FILE; do
+                  [ -z "$FILE" ] && continue
+                  # Match exact paths, not patterns or substrings.
+                  if ! grep -Fxq -- "$FILE" <<< "$NON_CODE_PATHS"; then
+                    CODE=true
+                    break
+                  fi
+                done <<< "$CHANGED"
+              fi
+            fi
+          fi
+          echo "Code changes detected: $CODE"
+          echo "code-changes=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Determine Moodle core branch
         id: determine-branch
@@ -438,6 +501,7 @@ jobs:
     name: Static checks
     runs-on: ubuntu-24.04
     needs: preflight
+    if: ${{ needs.preflight.outputs.code-changes == 'true' }}
 
     services:
       postgres:
@@ -511,19 +575,6 @@ jobs:
         if: ${{ !cancelled() }}
         continue-on-error: ${{ needs.preflight.outputs.phpcs-continue-on-error == 'true' }}
         run: moodle-plugin-ci phpcs --max-warnings ${{ inputs.phpcs-max-warnings }}
-
-      - name: Pull request content checker
-        uses: JJ/github-pr-contains-action@releases/v14
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && (inputs.pr-check-diff-contains != '' || inputs.pr-check-diff-does-not-contain != '' || inputs.pr-check-body-contains != '' || inputs.pr-check-body-does-not-contain != '' || inputs.pr-check-files-changed != '' || inputs.pr-check-lines-changed != '' || inputs.pr-check-waived-users != '') }}
-        with:
-          github-token: ${{ github.token }}
-          diffContains: ${{ inputs.pr-check-diff-contains }}
-          diffDoesNotContain: ${{ inputs.pr-check-diff-does-not-contain }}
-          bodyContains: ${{ inputs.pr-check-body-contains }}
-          bodyDoesNotContain: ${{ inputs.pr-check-body-does-not-contain }}
-          filesChanged: ${{ inputs.pr-check-files-changed }}
-          linesChanged: ${{ inputs.pr-check-lines-changed }}
-          waivedUsers: ${{ inputs.pr-check-waived-users }}
 
       - name: Moodle PHPDoc Checker
         if: ${{ !cancelled() }}
@@ -618,6 +669,7 @@ jobs:
     name: Runtime tests
     runs-on: ubuntu-24.04
     needs: preflight
+    if: ${{ needs.preflight.outputs.code-changes == 'true' }}
     env:
       GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
       GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
@@ -972,6 +1024,7 @@ jobs:
     name: Runtime verification
     runs-on: ubuntu-24.04
     needs: [preflight, run]
+    if: ${{ needs.preflight.outputs.code-changes == 'true' }}
     env:
       GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
       GENERIC_PASSWORD_1: ${{ secrets.GENERIC_PASSWORD_1 }}
