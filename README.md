@@ -237,6 +237,24 @@ jobs:
       scss-deprecations: false
 ```
 
+#### With a tolerated number of code quality warnings
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      phpcs-max-warnings: 3
+      phpdoc-max-warnings: 12
+      grunt-max-lint-warnings: 2
+```
+
+Please note: These parameters are meant to let a particular, known number of warnings pass in a plugin which cannot get rid of these warnings for good reasons. They are not meant to switch warnings off across the board. Set the value to the exact number of warnings which the plugin currently produces, so that any additional warning which appears later on still makes the workflow fail. Keep the value as low as possible and lower it again as soon as warnings have been fixed. A blanket high value defeats the purpose of these checks.
+
 #### With continue-on-error for code quality checks
 
 ```yaml
@@ -275,7 +293,10 @@ jobs:
 | `pr-check-files-changed` | string | No | - | Number of files that must have changed in pull request |
 | `pr-check-lines-changed` | string | No | - | Number of lines that must have changed in pull request |
 | `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
+| `phpdoc-max-warnings` | number | No | 0 | Number of warnings which are tolerated in the Moodle PHPDoc Checker (phpdoc) step before it fails. |
+| `grunt-max-lint-warnings` | number | No | 0 | Number of lint warnings which are tolerated in the Grunt step before it fails. |
 | `phpcs-continue-on-error` | boolean | No | false | Continue on error for Moodle Code Checker (phpcs) |
+| `phpcs-max-warnings` | number | No | 0 | Number of warnings which are tolerated in the Moodle Code Checker (phpcs) step before it fails. |
 | `mustache-continue-on-error` | boolean | No | false | Continue on error for Mustache Lint |
 | `scss-deprecations` | boolean | No | true | Include SCSS deprecation warnings in Behat tests |
 

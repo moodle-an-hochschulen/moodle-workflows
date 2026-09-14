@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-09-14 - Add options to tolerate a known number of warnings in the Moodle Code Checker, Moodle PHPDoc Checker and Grunt steps
 * 2026-06-12 - Add option to split the Behat run across multiple parallel slices
 * 2026-06-09 - Add possibility to pass secrets to the workflow
 * 2025-10-24 - Add Moodle core repository branch detection as final fallback to automatic branch detection

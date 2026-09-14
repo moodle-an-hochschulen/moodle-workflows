@@ -82,6 +82,21 @@ on:
         description: Comma-separated list of users exempt from pull request checks
         type: string
         required: false
+      phpcs-max-warnings:
+        description: Number of warnings which are tolerated in the Moodle Code Checker (phpcs) step before it fails.
+        type: number
+        required: false
+        default: 0
+      phpdoc-max-warnings:
+        description: Number of warnings which are tolerated in the Moodle PHPDoc Checker (phpdoc) step before it fails.
+        type: number
+        required: false
+        default: 0
+      grunt-max-lint-warnings:
+        description: Number of lint warnings which are tolerated in the Grunt step before it fails.
+        type: number
+        required: false
+        default: 0
       phpcs-continue-on-error:
         description: Continue on error for Moodle Code Checker (phpcs)
         type: boolean
@@ -407,7 +422,7 @@ jobs:
       - name: Moodle Code Checker
         if: ${{ !cancelled() }}
         continue-on-error: ${{ inputs.phpcs-continue-on-error }}
-        run: moodle-plugin-ci phpcs --max-warnings 0
+        run: moodle-plugin-ci phpcs --max-warnings ${{ inputs.phpcs-max-warnings }}
 
       - name: Pull request content checker
         uses: JJ/github-pr-contains-action@releases/v14
@@ -424,7 +439,7 @@ jobs:
 
       - name: Moodle PHPDoc Checker
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpdoc --max-warnings 0
+        run: moodle-plugin-ci phpdoc --max-warnings ${{ inputs.phpdoc-max-warnings }}
 
       - name: Development Leftover Checker
         if: ${{ !cancelled() }}
@@ -467,7 +482,7 @@ jobs:
 
       - name: Grunt
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci grunt --max-lint-warnings 0
+        run: moodle-plugin-ci grunt --max-lint-warnings ${{ inputs.grunt-max-lint-warnings }}
 
       - name: Mark cancelled jobs as failed.
         if: ${{ cancelled() }}
