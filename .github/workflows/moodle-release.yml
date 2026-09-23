@@ -7,6 +7,10 @@ on:
         description: 'Git tag to be released. If not set, the tag is taken from the triggering event.'
         type: string
         required: false
+      release_notes:
+        description: 'Release notes to be published. If not set, they are taken from the Github release which belongs to the tag or from the changelog file of the plugin.'
+        type: string
+        required: false
       plugin-name:
         description: 'Deprecated and ignored. The plugin frankenstyle name is read from version.php by the Moodle HQ tool now.'
         type: string
@@ -21,5 +25,6 @@ jobs:
     uses: moodlehq/moodle-plugin-release/.github/workflows/moodle-release.yml@main
     with:
       tag: ${{ inputs.tag || github.event.inputs.tag }}
+      release_notes: ${{ inputs.release_notes }}
     secrets:
       MOODLE_MARKETPLACE_TOKEN: ${{ secrets.MOODLE_ORG_TOKEN }}

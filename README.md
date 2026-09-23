@@ -500,6 +500,7 @@ jobs:
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `tag` | string | No | The tag from the triggering event | Git tag to be released. You normally do not need to set this: on a tag push as well as on a `workflow_dispatch` run with a `tag` input, the workflow picks the tag up on its own. |
+| `release_notes` | string | No | - | Release notes to be published. You normally do not need to set this either, see the notes below about how the release notes are determined. |
 | `plugin-name` | string | No | - | Deprecated and ignored, see the notes below. |
 
 ### Required Github actions secrets
@@ -533,7 +534,7 @@ Compared to the previous release process which published to the good old Moodle 
 
 * The plugin's frankenstyle name is not derived from the Github repository name anymore. It is read from the `$plugin->component` setting in the `version.php` file in the root of your plugin repository. Your repository does not have to follow the `moodle-<frankenstyle_pluginname>` naming convention anymore. Consequently, the `plugin-name` parameter of this workflow has become pointless. It is still accepted, but ignored, so that plugin repositories which set it do not break. You can remove it from your caller workflow at any time.
 * Your ZIP package is not downloaded from Github anymore. It is built within the workflow run from the tagged code with `git archive`. If your repository ships a `.gitattributes` file with `export-ignore` entries, these files will not be part of the released ZIP package.
-* The release notes are taken from the description of the Github release which belongs to the tag. If you just push a tag without creating a Github release for it, the plugin version will be published without any release notes.
+* The release notes are determined in this order: the `release_notes` parameter of this workflow if you set it, then the description of the Github release which belongs to the tag, then the first changelog file which exists in the root of your plugin (`CHANGES.md`, `CHANGES.txt`, `CHANGES.html`, `CHANGES`, `CHANGELOG.md`, `CHANGELOG.txt`, `CHANGELOG.html`, `CHANGELOG` or `UPGRADING.md`, matched regardless of upper and lower case). If none of these yields anything, the plugin version is published without any release notes. Please note that the changelog file is published as a whole, not just the section which belongs to the released version.
 
 
 Bug and problem reports / Support requests

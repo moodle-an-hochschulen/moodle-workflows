@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-09-23 - Update moodle-release workflow to support the new notes parameter of the HQ GHA workflow
 * 2026-09-18 - Update moodle-release workflow to use the new Moodle Marketplace API
                ACTION REQUIRED: If you use this workflow in your Moodle plugin repos, have a look at https://github.com/moodle-an-hochschulen/moodle-workflows#moodle-release-workflow for understanding the necessary transition steps
 * 2026-09-14 - Add options to tolerate a known number of warnings in the Moodle Code Checker, Moodle PHPDoc Checker and Grunt steps
