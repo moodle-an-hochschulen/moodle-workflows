@@ -496,7 +496,7 @@ jobs:
       - name: Mustache Lint (with upstream templates and baseline file)
         if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended == 'true' }}
         continue-on-error: ${{ inputs.mustache-continue-on-error }}
-        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/mustache-lint@issue-17
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/mustache-lint@main
 
       - name: Grunt
         if: ${{ !cancelled() }}
