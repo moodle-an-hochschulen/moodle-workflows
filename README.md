@@ -35,7 +35,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Strict Behat result handling** to let the runtime tests fail if Behat silently skipped scenarios because of pending or undefined steps
 - **Behat web server supervision** to restart the PHP web server automatically if it crashes during the Behat run, so that a single crash no longer fails the whole job
 - **Flaky Behat scenario reporting** to print a warning and to keep the Behat faildump if scenarios failed in the first attempt and only passed in the automatic rerun
-- **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
+- **Concurrency handling** to cancel superseded runs on the same branch and deduplicate push and pull request runs on the same branch (configure `tags-ignore` in the caller workflow's `on: push` trigger to avoid duplicate runs on release)
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
@@ -57,6 +57,8 @@ name: Moodle Plugin CI
 
 on:
   push:
+    branches: ['**']
+    tags-ignore: ['**']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -73,6 +75,8 @@ jobs:
     with:
       moodle-core-branch: ${{ inputs.moodle-core-branch || github.event.client_payload.moodle-core-branch }}
 ```
+
+Push and pull request runs for the same source repository and branch share a concurrency group. Including the source repository keeps identically named branches in different forks separate. When both events trigger a run, one cancels the other; event ordering is not guaranteed, so either run can survive. Configure `tags-ignore` as above to prevent tag pushes from starting Plugin CI alongside release workflows.
 
 #### More sophisticated setups
 

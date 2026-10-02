@@ -139,7 +139,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
+  group: ${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}-${{ inputs.moodle-core-branch || 'auto' }}
   cancel-in-progress: true
 
 jobs:

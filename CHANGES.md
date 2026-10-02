@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-07 - Cancel duplicate push and pull request CI runs for the same source repository and branch, and document tag exclusion in caller workflows
 * 2026-10-06 - Allow the phpcs-continue-on-error, mustache-continue-on-error, scss-deprecations and behat-strict parameters to be set organization-wide via configuration variables, resolves #24
 * 2026-10-05 - Let all runtime test matrix jobs run to completion even if one of them fails, so that the Behat faildumps of all slices are available, and cancel the remaining verify matrix jobs instead if one of them fails
 * 2026-10-05 - Fail the preflight job with a clear error message if the detected Moodle core branch is not configured in matrix.json
