@@ -37,6 +37,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
 - **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
+- **Upstream-aware Mustache linting** which accepts Mustache Lint messages that a template inherits from the upstream template it was copied from or which are listed in a baseline file
 - **Flexible pre-install script** for running a custom script before installing moodle-plugin-ci
 - **Generic secrets support** to pass up to two username/password credential pairs from your repository secrets into the test environment
 
@@ -335,6 +336,26 @@ Use the `php-extensions` parameter to install additional PHP extensions needed b
 ### Pull request content validation
 
 The workflow supports automated pull request content validation using the [github-pr-contains-action](https://github.com/JJ/github-pr-contains-action) action by JJ. These checks run during the static analysis phase and only apply to pull requests. Please see JJ's documentation for additional details.
+
+### Mustache Lint with upstream templates and a baseline file
+
+Theme plugins like Boost Union often copy Mustache templates from Moodle core or from other plugins and adapt them. These copies inherit all Mustache Lint messages of the upstream template, and fixing them in the copy would make the copy deviate from the upstream template. Additionally, some of the plugin's own templates may be fragments (e.g. single list items) which produce Mustache Lint messages for good reasons.
+
+The workflow therefore checks in the preflight job if the plugin contains `.upstream` template files or a `.mustachelintbaseline` file. If it does, the Mustache Lint step is run with the bundled `mustache-lint` action which accepts Mustache Lint messages in two cases and only fails for all other messages:
+
+- If a file with the same name plus the suffix `.upstream` (e.g. `templates/core/user_menu.mustache.upstream`) exists next to a template, the step lints this file as well. All messages which are also reported for the `.upstream` file are accepted for the template. The `.upstream` file is supposed to contain an unmodified copy of the upstream template.
+- If the plugin contains a `.mustachelintbaseline` file in its root directory, all messages which are listed in this file are accepted. The file contains one message per line in the format `<template path>: <message>`, for example:
+
+```
+# The smart menu children templates render single menu items which are wrapped into a menu by the calling template.
+templates/smartmenus-moremenu-children.mustache: WARNING: HTML Validation error: Element “li” not allowed as child of element “body” in this context.
+```
+
+The messages are compared without the line number and without the HTML or JavaScript extract in parentheses, as these depend on the template's example context. The normalized messages are printed in the workflow log, so you can copy them from there into the baseline file. Each message is counted, so if a template reports a message more often than its `.upstream` file or the baseline file, the step fails. Lines starting with `#` and empty lines in the baseline file are ignored, and baseline entries which do not match any message anymore make the step fail as well, so the baseline file always has to be kept up to date.
+
+Please note: Partials which are included by an `.upstream` file are resolved in the same way as for the plugin's template, i.e. the plugin's own template overrides are used. Messages caused by such a partial are still reported for the partial itself.
+
+If a plugin has neither `.upstream` files nor a `.mustachelintbaseline` file, the Mustache Lint step just runs `moodle-plugin-ci mustache` as usual.
 
 ### Passing secrets to the workflow
 

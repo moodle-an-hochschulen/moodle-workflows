@@ -139,6 +139,7 @@ jobs:
       matrix-run: ${{ steps.preflight-matrix.outputs.matrix-run }}
       matrix-verify: ${{ steps.preflight-matrix.outputs.matrix-verify }}
       moodle-core-branch: ${{ steps.determine-branch.outputs.moodle-core-branch }}
+      mustache-lint-extended: ${{ steps.mustache-lint-files.outputs.mustache-lint-extended }}
     steps:
       - name: Checkout calling plugin repository
         uses: actions/checkout@v4
@@ -233,6 +234,18 @@ jobs:
 
           echo "moodle-core-branch=$MOODLE_BRANCH" >> $GITHUB_OUTPUT
           echo "Final Moodle branch: $MOODLE_BRANCH"
+
+      - name: Check for Mustache Lint upstream and baseline files
+        id: mustache-lint-files
+        run: |
+          # If the plugin contains .upstream template files or a .mustachelintbaseline file, the extended Mustache Lint is used.
+          if [ -f calling-repo/.mustachelintbaseline ] || find calling-repo -path calling-repo/.git -prune -o -name '*.mustache.upstream' -print | grep -q .; then
+            echo "Found .upstream template files or a .mustachelintbaseline file, the extended Mustache Lint will be used."
+            echo "mustache-lint-extended=true" >> $GITHUB_OUTPUT
+          else
+            echo "Found neither .upstream template files nor a .mustachelintbaseline file, the standard Mustache Lint will be used."
+            echo "mustache-lint-extended=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check out moodle-workflows repository code
         uses: actions/checkout@v4
@@ -476,9 +489,14 @@ jobs:
         run: moodle-plugin-ci savepoints
 
       - name: Mustache Lint
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended != 'true' }}
         continue-on-error: ${{ inputs.mustache-continue-on-error }}
         run: moodle-plugin-ci mustache
+
+      - name: Mustache Lint (with upstream templates and baseline file)
+        if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended == 'true' }}
+        continue-on-error: ${{ inputs.mustache-continue-on-error }}
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/mustache-lint@issue-17
 
       - name: Grunt
         if: ${{ !cancelled() }}

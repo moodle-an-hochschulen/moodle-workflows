@@ -1,0 +1,9 @@
+name: Mustache Lint with upstream templates and a baseline file
+description: Run Mustache Lint and accept the messages which are inherited from .upstream template files or which are listed in the plugin's .mustachelintbaseline file
+
+runs:
+  using: composite
+  steps:
+    - name: Run Mustache Lint
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/mustache-lint.sh"
