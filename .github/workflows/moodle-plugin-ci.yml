@@ -54,6 +54,11 @@ on:
         type: number
         required: false
         default: 1
+      behat-strict:
+        description: Let the runtime tests fail if Behat reports pending or undefined steps (which Behat itself does not treat as failures)
+        type: boolean
+        required: false
+        default: true
       pr-check-diff-contains:
         description: Pull request diff must contain this text
         type: string
@@ -670,10 +675,43 @@ jobs:
           echo "BEHAT_TAGS=$TAGS" >> "$GITHUB_ENV"
           echo "Using Behat tags: ${TAGS:-(none, moodle-plugin-ci default component tag applies)}"
 
+      # The Behat output is additionally written to a log file so that the next step can inspect the Behat summary.
+      # pipefail makes sure that the step still fails if moodle-plugin-ci fails, even though its output is piped through tee.
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"}
+        run: |
+          set -o pipefail
+          moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"} 2>&1 | tee "${{ runner.temp }}/behat-output.log"
+
+      # Behat does not treat pending steps (e.g. a 'the following "x" exist' step with an entity which the plugin's
+      # Behat generator does not know) or undefined steps (a step without a matching step definition) as failures
+      # and exits with code 0. The affected scenarios are silently skipped and the Behat step passes nevertheless.
+      # To catch such glitches, this step scans the Behat summary lines for pending or undefined steps and fails if any are found.
+      # The check can be disabled with the behat-strict input.
+      - name: Check for pending or undefined Behat steps
+        if: ${{ !cancelled() && steps.behat.outcome == 'success' && inputs.behat-strict }}
+        run: |
+          BEHAT_LOG="${{ runner.temp }}/behat-output.log"
+          if [ ! -f "$BEHAT_LOG" ]; then
+            echo "No Behat output found, nothing to check."
+            exit 0
+          fi
+
+          # Behat prints summary lines like "12 scenarios (11 passed, 1 pending)" and
+          # "130 steps (120 passed, 1 pending, 9 skipped)" and only lists the result types which actually occurred.
+          if grep -qE '^[0-9]+ (scenarios?|steps?) \(.*(pending|undefined)' "$BEHAT_LOG"; then
+            echo "Behat reported pending or undefined steps:"
+            echo ""
+            # Print the list of pending steps (if Behat printed one) and the summary lines.
+            awk '/^--- Pending steps:/ { p = 1 } /^[0-9]+ scenarios? \(/ { p = 0 } p' "$BEHAT_LOG"
+            grep -E '^[0-9]+ (scenarios?|steps?) \(' "$BEHAT_LOG"
+            echo ""
+            echo "::error::Behat reported pending or undefined steps. Pending steps are typically caused by a Behat generator entity which does not exist in this plugin version, undefined steps by a missing step definition. Please check the Behat output above and fix the affected scenarios."
+            exit 1
+          fi
+
+          echo "No pending or undefined Behat steps found."
 
       - name: Upload Behat Faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}

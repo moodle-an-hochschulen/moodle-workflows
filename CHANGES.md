@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-03 - Add option to let the runtime tests fail if Behat reports pending or undefined steps (enabled by default), resolves #18
 * 2026-10-02 - Accept Mustache Lint messages which are inherited from .upstream template files or listed in a .mustachelintbaseline file, resolves #17
 * 2026-09-23 - Deduplicate runtime test steps in `run` and `verify` jobs via YAML anchors and aliases
 * 2026-09-23 - Update moodle-release workflow to support the new notes parameter of the HQ GHA workflow

@@ -32,6 +32,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Behat suite and tags selection** to select the theme and the tags to be used for running Behat tests
 - **Behat timeout handling** to raise the Behat timeout if the plugin requires it
 - **Behat parallelization** to split the Behat run across multiple parallel jobs, distributing the plugin's feature files by scenario count to shorten the overall runtime
+- **Strict Behat result handling** to let the runtime tests fail if Behat silently skipped scenarios because of pending or undefined steps
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -238,6 +239,20 @@ jobs:
       scss-deprecations: false
 ```
 
+#### With strict Behat result handling disabled
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      behat-strict: false
+```
+
 #### With a tolerated number of code quality warnings
 
 ```yaml
@@ -287,6 +302,7 @@ jobs:
 | `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
 | `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |
 | `behat-slices` | number | No | 1 | Number of parallel Behat slices to split the Behat run across (1 = no splitting). Each slice runs a subset of the plugin's Behat feature files in its own job, distributed by scenario count. |
+| `behat-strict` | boolean | No | true | Let the runtime tests fail if Behat reports pending or undefined steps (which Behat itself does not treat as failures) |
 | `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
 | `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
 | `pr-check-body-contains` | string | No | - | Pull request body must contain this text |
@@ -439,6 +455,19 @@ Notes:
 - The splitting happens per feature file, not per scenario. A single feature file always runs within one slice.
 - If you configure more slices than the plugin has feature files, the surplus slice jobs will simply run no scenarios (and pass quickly). Choose a slice count that fits the number of feature files.
 - Slicing applies to both the run and the verify job, so the total number of runtime jobs grows accordingly. Combine it with `max-parallel-verify` if you want to limit how many verify jobs run at the same time.
+
+### Strict Behat result handling
+
+Behat does not treat pending steps or undefined steps as failures. It just skips the rest of the affected scenario and exits with code 0, which lets the Behat step pass although the scenario has not really been tested. Such glitches can easily go unnoticed in the workflow log.
+
+Typical causes are:
+
+- A `the following "x" exist:` step which uses an entity that the plugin's Behat generator does not know. This happens, for example, when a scenario is backported to an older plugin branch whose generator does not provide the entity yet. Moodle reports this as a pending step with the message `"x" is not a known type of entity that can be generated`.
+- A step without a matching step definition, which Behat reports as an undefined step.
+
+The workflow therefore scans the Behat summary (e.g. `12 scenarios (11 passed, 1 pending)`) after the Behat run and fails the runtime tests if any pending or undefined steps were reported. The list of pending steps and the summary lines are printed in the workflow log.
+
+This check is enabled by default. If your plugin intentionally contains pending or undefined steps, you can disable it by setting `behat-strict: false`. The Behat run itself is not changed by this setting, it only controls whether pending or undefined steps let the runtime tests fail.
 
 ### CLI tool
 
