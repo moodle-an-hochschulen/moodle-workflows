@@ -41,6 +41,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
 - **Upstream-aware Mustache linting** which accepts Mustache Lint messages that a template inherits from the upstream template it was copied from or which are listed in a baseline file
 - **Flexible pre-install script** for running a custom script before installing moodle-plugin-ci
+- **Additional config.php lines** to add arbitrary lines to the Moodle config.php for the runtime tests, e.g. to override constants or to set config settings which cannot be set via the Moodle UI
 - **Generic secrets support** to pass up to two username/password credential pairs from your repository secrets into the test environment
 
 ### Usage
@@ -152,6 +153,22 @@ jobs:
         touch plugin/foo
         # Do that.
         rm -f plugin/foo
+```
+
+#### With additional config.php lines
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      extra-config: |
+        define('THEME_DESIGNER_CACHE_LIFETIME', 0);
+        $CFG->foo = 'bar';
 ```
 
 #### With pull request content checks
@@ -299,6 +316,7 @@ jobs:
 | `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
 | `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
 | `pre-install-script` | string | No | - | Custom script to run before installing moodle-plugin-ci (multiline bash script) |
+| `extra-config` | string | No | - | Additional lines to add to the Moodle config.php after installing moodle-plugin-ci (multiline, one PHP statement per line). The lines are added with `moodle-plugin-ci add-config` and apply to both the PHPUnit and the Behat runs. |
 | `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
 | `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
 | `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |

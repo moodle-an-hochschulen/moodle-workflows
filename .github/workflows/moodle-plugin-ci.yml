@@ -37,6 +37,10 @@ on:
         description: Custom script to run before installing moodle-plugin-ci (multiline bash script)
         type: string
         required: false
+      extra-config:
+        description: Additional lines to add to the Moodle config.php after installing moodle-plugin-ci (multiline, one PHP statement per line, e.g. "define('THEME_DESIGNER_CACHE_LIFETIME', 0);")
+        type: string
+        required: false
       behat-suite:
         description: The theme to be used for running Behat tests (e.g. "boost_union")
         type: string
@@ -675,6 +679,19 @@ jobs:
         env:
           DB: ${{ matrix.database }}
           MOODLE_BRANCH: ${{ matrix.moodle-core-branch }}
+
+      - name: Add extra config
+        if: ${{ !cancelled() && inputs.extra-config != '' }}
+        env:
+          EXTRA_CONFIG: ${{ inputs.extra-config }}
+        run: |
+          # Process the extra config lines one by one, skipping empty lines.
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              echo "Adding config line: $line"
+              moodle-plugin-ci add-config "$line"
+            fi
+          done <<< "$EXTRA_CONFIG"
 
       - name: PHPUnit tests
         if: ${{ !cancelled() }}
