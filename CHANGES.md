@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-04 - Intermediate fix to let the Mustache Lint step run ESLint on the JS in Mustache templates on Moodle 5.1+ again until https://github.com/moodlehq/moodle-plugin-ci/issues/400 is fixed, resolves #21
 * 2026-10-03 - Run the PHP web server for Behat in a supervisor loop which restarts it if it crashes and keeps its log, resolves #19
 * 2026-10-03 - Add option to let the runtime tests fail if Behat reports pending or undefined steps (enabled by default), resolves #18
 * 2026-10-02 - Accept Mustache Lint messages which are inherited from .upstream template files or listed in a .mustachelintbaseline file, resolves #17

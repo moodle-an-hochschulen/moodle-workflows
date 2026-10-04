@@ -493,6 +493,25 @@ jobs:
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci savepoints
 
+      # Intermediate fix for https://github.com/moodlehq/moodle-plugin-ci/issues/400:
+      # On Moodle 5.1+, the Mustache linter looks for ESLint and its configuration within the public directory instead of
+      # the Moodle root directory and thus does not lint the JS in Mustache templates anymore.
+      # This step and the cleanup step after the Mustache Lint steps can be removed again as soon as the upstream issue is fixed.
+      - name: Make ESLint available for Mustache Lint on Moodle 5.1+
+        if: ${{ !cancelled() }}
+        run: |
+          MOODLE_DIR=$(grep '^MOODLE_DIR=' ci/.env 2>/dev/null | cut -d= -f2-) || true
+          if [ -n "$MOODLE_DIR" ] && [ -d "$MOODLE_DIR/public" ]; then
+            for ITEM in node_modules .eslintrc; do
+              if [ -e "$MOODLE_DIR/$ITEM" ] && [ ! -e "$MOODLE_DIR/public/$ITEM" ]; then
+                ln -s "../$ITEM" "$MOODLE_DIR/public/$ITEM"
+                echo "Created symlink $MOODLE_DIR/public/$ITEM -> ../$ITEM"
+              fi
+            done
+          else
+            echo "Moodle does not use the public directory structure, nothing to do."
+          fi
+
       - name: Mustache Lint
         if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended != 'true' }}
         continue-on-error: ${{ inputs.mustache-continue-on-error }}
@@ -502,6 +521,20 @@ jobs:
         if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended == 'true' }}
         continue-on-error: ${{ inputs.mustache-continue-on-error }}
         uses: moodle-an-hochschulen/moodle-workflows/.github/actions/mustache-lint@main
+
+      # Cleanup for the intermediate fix for https://github.com/moodlehq/moodle-plugin-ci/issues/400 (see above).
+      - name: Remove ESLint symlinks for Mustache Lint on Moodle 5.1+
+        if: ${{ always() }}
+        run: |
+          MOODLE_DIR=$(grep '^MOODLE_DIR=' ci/.env 2>/dev/null | cut -d= -f2-) || true
+          if [ -n "$MOODLE_DIR" ]; then
+            for ITEM in node_modules .eslintrc; do
+              if [ -L "$MOODLE_DIR/public/$ITEM" ]; then
+                rm "$MOODLE_DIR/public/$ITEM"
+                echo "Removed symlink $MOODLE_DIR/public/$ITEM"
+              fi
+            done
+          fi
 
       - name: Grunt
         if: ${{ !cancelled() }}
