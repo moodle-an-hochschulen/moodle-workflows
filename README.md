@@ -33,6 +33,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Behat timeout handling** to raise the Behat timeout if the plugin requires it
 - **Behat parallelization** to split the Behat run across multiple parallel jobs, distributing the plugin's feature files by scenario count to shorten the overall runtime
 - **Strict Behat result handling** to let the runtime tests fail if Behat silently skipped scenarios because of pending or undefined steps
+- **Behat web server supervision** to restart the PHP web server automatically if it crashes during the Behat run, so that a single crash no longer fails the whole job
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -468,6 +469,19 @@ Typical causes are:
 The workflow therefore scans the Behat summary (e.g. `12 scenarios (11 passed, 1 pending)`) after the Behat run and fails the runtime tests if any pending or undefined steps were reported. The list of pending steps and the summary lines are printed in the workflow log.
 
 This check is enabled by default. If your plugin intentionally contains pending or undefined steps, you can disable it by setting `behat-strict: false`. The Behat run itself is not changed by this setting, it only controls whether pending or undefined steps let the runtime tests fail.
+
+### Behat web server supervision
+
+moodle-plugin-ci runs the Behat tests against PHP's built-in web server (`php -S localhost:8000`). By default, it starts this server as a single process, discards its output and does not restart it if it dies. If the server crashes in the middle of a long Behat run, every remaining scenario fails with `Connection refused`, the automatic reruns of moodle-plugin-ci hit the dead server as well and the whole job is lost, although only a single scenario was actually affected by the crash.
+
+The workflow therefore does not let moodle-plugin-ci start the servers. Instead, it starts Selenium itself (with the same options as moodle-plugin-ci) and runs the PHP web server in a supervisor loop which starts the server again immediately if it exits for whatever reason. A crash then only affects the scenario which was running at that moment, and this scenario is picked up by the automatic rerun.
+
+The output of the PHP web server, including its exit codes, is written to a log file:
+
+- After the Behat run, the workflow prints a warning if the web server had to be restarted, together with the exit codes and the last requests before each exit.
+- If the Behat run fails or if the web server had to be restarted, the log file is uploaded as the `PHP web server log` artifact. In the second case this happens even if the job passed, so that the cause of the crash can be examined.
+
+No configuration is needed for this, it is always active. If you set `MOODLE_BEHAT_SELENIUM_IMAGE` in your environment, it is respected just like moodle-plugin-ci does.
 
 ### CLI tool
 

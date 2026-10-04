@@ -675,14 +675,97 @@ jobs:
           echo "BEHAT_TAGS=$TAGS" >> "$GITHUB_ENV"
           echo "Using Behat tags: ${TAGS:-(none, moodle-plugin-ci default component tag applies)}"
 
+      # moodle-plugin-ci would start Selenium and the PHP built-in web server for Behat itself. However, it runs the
+      # web server as a single process, discards its output and does not restart it if it dies. If the server crashes
+      # in the middle of the run, every remaining scenario fails with "Connection refused", the automatic reruns hit the
+      # dead server as well and the whole slice is lost. Therefore the workflow starts both servers on its own:
+      # Selenium exactly like moodle-plugin-ci does it, and the PHP web server in a supervisor loop which restarts it
+      # immediately if it dies and logs its output and exit codes for later diagnosis.
+      - name: Start Selenium and PHP web server for Behat
+        if: ${{ !cancelled() }}
+        run: |
+          MOODLE_DIR="${{ github.workspace }}/moodle"
+          WEBSERVER_LOG="${{ runner.temp }}/php-webserver.log"
+
+          # Start Selenium with the same options as moodle-plugin-ci does (host networking, shared memory,
+          # Moodle directory mounted at the same path for file uploads in Behat).
+          docker run -d --rm --name=selenium --network=host --shm-size=2g \
+            -v "$MOODLE_DIR:$MOODLE_DIR" \
+            "${MOODLE_BEHAT_SELENIUM_IMAGE:-selenium/standalone-chrome:4}"
+
+          # Moodle 5.1+ serves the site from the public subdirectory.
+          DOCROOT="$MOODLE_DIR"
+          if [ -f "$DOCROOT/public/version.php" ]; then
+            DOCROOT="$DOCROOT/public"
+          fi
+
+          # Supervisor loop: run the PHP built-in web server and start it again if it exits for whatever reason.
+          # The server's request log and its exit codes (e.g. 139 for a segmentation fault or 137 for an OOM kill)
+          # go to the web server log file which is uploaded as an artifact if the Behat run fails.
+          # A plain Bash loop is used instead of a systemd transient unit (systemd-run with Restart=always) because it
+          # needs no sudo, runs as the runner user with the PHP from setup-php, writes its log to a plain file and
+          # can be tested locally.
+          cat > "${{ runner.temp }}/php-webserver-supervisor.sh" <<'EOF'
+          #!/bin/bash
+          DOCROOT="$1"
+          while true; do
+            php -S localhost:8000 -t "$DOCROOT"
+            STATUS=$?
+            echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') ::: php -S exited with status $STATUS, restarting it"
+            sleep 1
+          done
+          EOF
+          nohup bash "${{ runner.temp }}/php-webserver-supervisor.sh" "$DOCROOT" > "$WEBSERVER_LOG" 2>&1 &
+
+          # Wait until both servers accept connections.
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:4444/status && curl -s -o /dev/null http://localhost:8000/; then
+              break
+            fi
+            sleep 1
+          done
+          curl -s http://localhost:4444/status | grep -q '"ready": *true' || { echo "::error::Selenium did not become ready"; exit 1; }
+          curl -s -o /dev/null http://localhost:8000/ || { echo "::error::PHP web server did not become ready"; exit 1; }
+          echo "Selenium and PHP web server (document root $DOCROOT) are running."
+
       # The Behat output is additionally written to a log file so that the next step can inspect the Behat summary.
       # pipefail makes sure that the step still fails if moodle-plugin-ci fails, even though its output is piped through tee.
+      # MOODLE_START_BEHAT_SERVERS is set to YES by moodle-plugin-ci install and is overridden here because the servers
+      # have already been started by the previous step.
       - name: Behat features
         id: behat
         if: ${{ !cancelled() }}
         run: |
           set -o pipefail
+          export MOODLE_START_BEHAT_SERVERS=NO
           moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"} 2>&1 | tee "${{ runner.temp }}/behat-output.log"
+
+      # Report if the PHP web server had to be restarted during the Behat run. This points to a server crash which
+      # the supervisor loop has covered, the web server log then holds the details. The number of restarts is
+      # exposed as a step output so that the log is uploaded as an artifact in this case even if the Behat run passed.
+      - name: Check PHP web server restarts
+        id: webserver
+        if: ${{ !cancelled() }}
+        run: |
+          WEBSERVER_LOG="${{ runner.temp }}/php-webserver.log"
+          RESTARTS=0
+          if [ -f "$WEBSERVER_LOG" ]; then
+            RESTARTS=$(grep -c '::: php -S exited with status' "$WEBSERVER_LOG" || true)
+          fi
+          echo "restarts=$RESTARTS" >> "$GITHUB_OUTPUT"
+          if [ "$RESTARTS" -gt 0 ]; then
+            echo "::warning::The PHP web server exited $RESTARTS time(s) during the Behat run and was restarted by the supervisor loop. Scenarios which failed because of this should have passed in the automatic rerun. See the PHP web server log for the exit codes and the last requests before each exit:"
+            grep -B5 '::: php -S exited with status' "$WEBSERVER_LOG"
+          else
+            echo "The PHP web server ran without interruption."
+          fi
+
+      - name: Stop Selenium and PHP web server
+        if: ${{ always() }}
+        run: |
+          pkill -f php-webserver-supervisor.sh || true
+          pkill -f 'php -S localhost:8000' || true
+          docker stop selenium || true
 
       # Behat does not treat pending steps (e.g. a 'the following "x" exist' step with an entity which the plugin's
       # Behat generator does not know) or undefined steps (a step without a matching step definition) as failures
@@ -719,6 +802,17 @@ jobs:
         with:
           name: Behat Faildump (${{ join(matrix.*, ', ') }})
           path: ${{ github.workspace }}/moodledata/behat_dump
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # The PHP web server log is uploaded if the Behat run failed or if the web server had to be restarted,
+      # because in the latter case the log holds the details of the crash even though the job may have passed.
+      - name: Upload PHP web server log
+        if: ${{ !cancelled() && (steps.behat.outcome == 'failure' || steps.webserver.outputs.restarts > 0) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: PHP web server log (${{ join(matrix.*, ', ') }})
+          path: ${{ runner.temp }}/php-webserver.log
           retention-days: 7
           if-no-files-found: ignore
 
