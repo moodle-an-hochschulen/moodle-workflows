@@ -275,7 +275,16 @@ jobs:
           DETECTED_BRANCH="${{ steps.determine-branch.outputs.moodle-core-branch }}"
 
           # Read the matrix configuration for the detected moodle-core-branch
-          BRANCH_CONFIG=$(cat preflight/.github/workflows/moodle-plugin-ci.matrix/matrix.json | jq -c --arg branch "$DETECTED_BRANCH" '.[$branch]')
+          MATRIX_FILE="preflight/.github/workflows/moodle-plugin-ci.matrix/matrix.json"
+          BRANCH_CONFIG=$(jq -c --arg branch "$DETECTED_BRANCH" '.[$branch]' "$MATRIX_FILE")
+
+          # Fail with a clear message if the detected branch is not configured in matrix.json.
+          # Without this check, the subsequent jq calls would fail with a cryptic "null (null) cannot be iterated over" error.
+          if [ -z "$BRANCH_CONFIG" ] || [ "$BRANCH_CONFIG" = "null" ]; then
+            AVAILABLE_BRANCHES=$(jq -r 'keys_unsorted | join(", ")' "$MATRIX_FILE")
+            echo "::error::The Moodle core branch '$DETECTED_BRANCH' is not configured in the CI matrix of the moodle-workflows repository. Configured branches: $AVAILABLE_BRANCHES. Please add the branch to https://github.com/moodle-an-hochschulen/moodle-workflows/blob/main/.github/workflows/moodle-plugin-ci.matrix/matrix.json or pass one of the configured branches via the 'moodle-core-branch' input."
+            exit 1
+          fi
 
           # Create the run matrix with highest PHP version and postgres only
           MATRIX_RUN_JSON=$(echo "$BRANCH_CONFIG" | jq -c '

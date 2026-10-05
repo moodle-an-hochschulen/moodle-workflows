@@ -6,6 +6,8 @@ Changes
 
 ### Rolling release
 
+* 2026-10-05 - Fail the preflight job with a clear error message if the detected Moodle core branch is not configured in matrix.json
+* 2026-10-05 - Add Moodle 5.3 to matrix.json
 * 2026-10-05 - Use ubuntu-22.04 instead of ubuntu-latest for preflight job for the sake of consistency
 * 2026-10-05 - Adopt suggested changes from upstream gha.dist.yml
 * 2026-10-05 - Print a warning and upload the Behat faildump if Behat scenarios failed in the first attempt and only passed in the automatic rerun, resolves #23
