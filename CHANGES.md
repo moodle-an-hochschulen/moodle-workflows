@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-05 - Use ubuntu-22.04 instead of ubuntu-latest for preflight job for the sake of consistency
 * 2026-10-05 - Adopt suggested changes from upstream gha.dist.yml
 * 2026-10-05 - Print a warning and upload the Behat faildump if Behat scenarios failed in the first attempt and only passed in the automatic rerun, resolves #23
 * 2026-10-04 - Add option to add additional lines to the Moodle config.php for the runtime tests, resolves #22
