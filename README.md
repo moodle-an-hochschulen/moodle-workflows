@@ -34,6 +34,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Behat parallelization** to split the Behat run across multiple parallel jobs, distributing the plugin's feature files by scenario count to shorten the overall runtime
 - **Strict Behat result handling** to let the runtime tests fail if Behat silently skipped scenarios because of pending or undefined steps
 - **Behat web server supervision** to restart the PHP web server automatically if it crashes during the Behat run, so that a single crash no longer fails the whole job
+- **Flaky Behat scenario reporting** to print a warning and to keep the Behat faildump if scenarios failed in the first attempt and only passed in the automatic rerun
 - **Concurrency handling** to cancel running jobs if a new commit is pushed to the same branch
 - **Consecutive runtime testing** where the code is initially tested with the highest PHP version and Postgres only and the full matrix is only tested if that initial test was successful with the goal to save ressources
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
@@ -500,6 +501,17 @@ The output of the PHP web server, including its exit codes, is written to a log 
 - If the Behat run fails or if the web server had to be restarted, the log file is uploaded as the `PHP web server log` artifact. In the second case this happens even if the job passed, so that the cause of the crash can be examined.
 
 No configuration is needed for this, it is always active. If you set `MOODLE_BEHAT_SELENIUM_IMAGE` in your environment, it is respected just like moodle-plugin-ci does.
+
+### Flaky Behat scenario reporting
+
+moodle-plugin-ci reruns failed Behat scenarios automatically. If a scenario fails in the first attempt and passes in the rerun, the Behat step is green and the job passes. The job log then only holds the generic Behat error message of the first attempt together with a truncated HTML snippet of the page, and the Behat faildump with the screenshot and the full HTML of the failed step would normally be discarded because the job did not fail. This makes flaky scenarios hard to investigate.
+
+The workflow therefore detects such reruns from the Behat output:
+
+- After the Behat run, the workflow prints a warning if scenarios had to be rerun, together with the failed steps of the first attempt.
+- If the Behat run fails or if scenarios had to be rerun, the faildump is uploaded as the `Behat Faildump` artifact. In the second case this happens even if the job passed, so that the screenshots and the HTML of the failed steps from the first attempt can be examined.
+
+No configuration is needed for this, it is always active.
 
 ### CLI tool
 

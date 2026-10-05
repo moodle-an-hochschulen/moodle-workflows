@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-05 - Print a warning and upload the Behat faildump if Behat scenarios failed in the first attempt and only passed in the automatic rerun, resolves #23
 * 2026-10-04 - Add option to add additional lines to the Moodle config.php for the runtime tests, resolves #22
 * 2026-10-04 - Intermediate fix to let the Mustache Lint step run ESLint on the JS in Mustache templates on Moodle 5.1+ again until https://github.com/moodlehq/moodle-plugin-ci/issues/400 is fixed, resolves #21
 * 2026-10-03 - Run the PHP web server for Behat in a supervisor loop which restarts it if it crashes and keeps its log, resolves #19
