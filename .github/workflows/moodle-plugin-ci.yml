@@ -589,7 +589,7 @@ jobs:
         options: --health-cmd="redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix: ${{ fromJson(needs.preflight.outputs.matrix-run) }}
 
     steps: &runtime-steps
@@ -954,7 +954,7 @@ jobs:
         options: --health-cmd="redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
 
     strategy:
-      fail-fast: false
+      fail-fast: true
       max-parallel: ${{ inputs.max-parallel-verify || 999 }}
       matrix: ${{ fromJson(needs.preflight.outputs.matrix-verify) }}
 

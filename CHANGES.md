@@ -6,6 +6,7 @@ Changes
 
 ### Rolling release
 
+* 2026-10-05 - Let all runtime test matrix jobs run to completion even if one of them fails, so that the Behat faildumps of all slices are available, and cancel the remaining verify matrix jobs instead if one of them fails
 * 2026-10-05 - Fail the preflight job with a clear error message if the detected Moodle core branch is not configured in matrix.json
 * 2026-10-05 - Add Moodle 5.3 to matrix.json
 * 2026-10-05 - Use ubuntu-22.04 instead of ubuntu-latest for preflight job for the sake of consistency
