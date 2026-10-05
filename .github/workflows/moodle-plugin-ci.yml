@@ -135,6 +135,9 @@ on:
         description: Generic secret to pass another password to the workflow, if needed
         required: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}-${{ inputs.moodle-core-branch || 'auto' }}
   cancel-in-progress: true
@@ -151,10 +154,11 @@ jobs:
       mustache-lint-extended: ${{ steps.mustache-lint-files.outputs.mustache-lint-extended }}
     steps:
       - name: Checkout calling plugin repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           path: calling-repo
+          persist-credentials: false
 
       - name: Determine Moodle core branch
         id: determine-branch
@@ -257,11 +261,12 @@ jobs:
           fi
 
       - name: Check out moodle-workflows repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: moodle-an-hochschulen/moodle-workflows
           ref: main
           path: preflight
+          persist-credentials: false
 
       - name: Create CI matrix from JSON
         id: preflight-matrix
@@ -371,12 +376,12 @@ jobs:
 
   static:
     name: Static checks
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: preflight
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: 'postgres'
           POSTGRES_HOST_AUTH_METHOD: 'trust'
@@ -390,16 +395,17 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: plugin
+          persist-credentials: false
 
       - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
-          ini-values: max_input_vars=5000
+          ini-values: max_input_vars=5000, opcache.enable_cli=1
           coverage: none
 
       - name: Initialise moodle-plugin-ci
@@ -550,7 +556,7 @@ jobs:
 
   run:
     name: Runtime tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: preflight
     env:
       GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
@@ -559,7 +565,7 @@ jobs:
       GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: 'postgres'
           POSTGRES_HOST_AUTH_METHOD: 'trust'
@@ -579,9 +585,10 @@ jobs:
 
     steps: &runtime-steps
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: plugin
+          persist-credentials: false
 
       - name: Start additional service from Docker Compose
         if: ${{ inputs.docker-compose-file != '' }}
@@ -594,7 +601,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
-          ini-values: max_input_vars=5000
+          ini-values: max_input_vars=5000, opcache.enable_cli=1
           coverage: none
 
       - name: Initialise moodle-plugin-ci
@@ -878,7 +885,7 @@ jobs:
 
       - name: Upload Behat Faildump
         if: ${{ !cancelled() && (steps.behat.outcome == 'failure' || steps.behatrerun.outputs.reruns > 0) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Behat Faildump (${{ join(matrix.*, ', ') }})
           path: ${{ github.workspace }}/moodledata/behat_dump
@@ -889,7 +896,7 @@ jobs:
       # because in the latter case the log holds the details of the crash even though the job may have passed.
       - name: Upload PHP web server log
         if: ${{ !cancelled() && (steps.behat.outcome == 'failure' || steps.webserver.outputs.restarts > 0) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: PHP web server log (${{ join(matrix.*, ', ') }})
           path: ${{ runner.temp }}/php-webserver.log
@@ -902,7 +909,7 @@ jobs:
 
   verify:
     name: Runtime verification
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [preflight, run]
     env:
       GENERIC_USERNAME_1: ${{ secrets.GENERIC_USERNAME_1 }}
@@ -911,8 +918,9 @@ jobs:
       GENERIC_PASSWORD_2: ${{ secrets.GENERIC_PASSWORD_2 }}
 
     services:
+      # Only start the database service which the matrix entry needs, an empty image skips the service.
       postgres:
-        image: postgres:16
+        image: ${{ matrix.database == 'pgsql' && 'postgres:17' || '' }}
         env:
           POSTGRES_USER: 'postgres'
           POSTGRES_HOST_AUTH_METHOD: 'trust'
@@ -921,15 +929,14 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
 
       mariadb:
-        image: mariadb:10
+        image: ${{ matrix.database == 'mariadb' && 'mariadb:11' || '' }}
         env:
-          MYSQL_USER: 'root'
-          MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
           MYSQL_CHARACTER_SET_SERVER: "utf8mb4"
           MYSQL_COLLATION_SERVER: "utf8mb4_unicode_ci"
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries 3
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval 10s --health-timeout 5s --health-retries 3
 
       redis:
         image: ${{ inputs.redis-enabled && 'redis:latest' || '' }}
