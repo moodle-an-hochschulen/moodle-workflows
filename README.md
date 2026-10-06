@@ -40,6 +40,7 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 - **Additional services support** including Redis service for plugins that require caching or session storage as well as Docker Compose support for arbitrary backend services like LDAP containers
 - **Pull request content validation** to automatically check PR content for required or forbidden text patterns, enforce ticket references, limit PR size, and exempt specific users from checks
 - **Flexible error handling** for code quality checks with configurable continue-on-error behavior for phpcs and mustache lint steps
+- **Organization-wide settings** to set workflow-wide parameters like the strict Behat result handling once as an organization variable instead of repeating them in the caller workflow of each plugin repository
 - **Upstream-aware Mustache linting** which accepts Mustache Lint messages that a template inherits from the upstream template it was copied from or which are listed in a baseline file
 - **Flexible pre-install script** for running a custom script before installing moodle-plugin-ci
 - **Additional config.php lines** to add arbitrary lines to the Moodle config.php for the runtime tests, e.g. to override constants or to set config settings which cannot be set via the Moodle UI
@@ -305,37 +306,60 @@ jobs:
       mustache-continue-on-error: true
 ```
 
-### Available parameters
+### Available input parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `moodle-core-branch` | string | No | auto-detected | Run the tests on this Moodle core branch (if not provided, the branch will be auto-detected from current branch) |
-| `plugin-dependencies` | string | No | - | List of plugin dependencies with repository and branch (use one dependency per line and separate repository and branch with a comma) |
-| `one-db-only` | boolean | No | false | Use only PostgreSQL database instead of all configured databases |
-| `max-parallel-verify` | number | No | unlimited | Maximum number of parallel jobs for the verify job (can be useful if you have really long running Behat tests and do not want to block too many runners at the same time) |
-| `redis-enabled` | boolean | No | false | Start Redis service before running runtime tests |
-| `php-extensions` | string | No | - | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
-| `docker-compose-file` | string | No | - | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
-| `pre-install-script` | string | No | - | Custom script to run before installing moodle-plugin-ci (multiline bash script) |
-| `extra-config` | string | No | - | Additional lines to add to the Moodle config.php after installing moodle-plugin-ci (multiline, one PHP statement per line). The lines are added with `moodle-plugin-ci add-config` and apply to both the PHPUnit and the Behat runs. |
-| `behat-suite` | string | No | - | The theme to be used for running Behat tests (e.g. "boost_union") |
-| `behat-tags` | string | No | - | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
-| `behat-timeout` | number | No | - | Behat timeout multiplier (e.g. 3 for 3x timeout) |
-| `behat-slices` | number | No | 1 | Number of parallel Behat slices to split the Behat run across (1 = no splitting). Each slice runs a subset of the plugin's Behat feature files in its own job, distributed by scenario count. |
-| `behat-strict` | boolean | No | true | Let the runtime tests fail if Behat reports pending or undefined steps (which Behat itself does not treat as failures) |
-| `pr-check-diff-contains` | string | No | - | Pull request diff must contain this text |
-| `pr-check-diff-does-not-contain` | string | No | - | Pull request diff must not contain this text |
-| `pr-check-body-contains` | string | No | - | Pull request body must contain this text |
-| `pr-check-body-does-not-contain` | string | No | - | Pull request body must not contain this text |
-| `pr-check-files-changed` | string | No | - | Number of files that must have changed in pull request |
-| `pr-check-lines-changed` | string | No | - | Number of lines that must have changed in pull request |
-| `pr-check-waived-users` | string | No | - | Comma-separated list of users exempt from pull request checks |
-| `phpdoc-max-warnings` | number | No | 0 | Number of warnings which are tolerated in the Moodle PHPDoc Checker (phpdoc) step before it fails. |
-| `grunt-max-lint-warnings` | number | No | 0 | Number of lint warnings which are tolerated in the Grunt step before it fails. |
-| `phpcs-continue-on-error` | boolean | No | false | Continue on error for Moodle Code Checker (phpcs) |
-| `phpcs-max-warnings` | number | No | 0 | Number of warnings which are tolerated in the Moodle Code Checker (phpcs) step before it fails. |
-| `mustache-continue-on-error` | boolean | No | false | Continue on error for Mustache Lint |
-| `scss-deprecations` | boolean | No | true | Include SCSS deprecation warnings in Behat tests |
+| Parameter | Type | Required | Default | Configuration variable | Description |
+|-----------|------|----------|---------|------------------------|-------------|
+| `moodle-core-branch` | string | No | auto-detected | None | Run the tests on this Moodle core branch (if not provided, the branch will be auto-detected from current branch) |
+| `plugin-dependencies` | string | No | - | None | List of plugin dependencies with repository and branch (use one dependency per line and separate repository and branch with a comma) |
+| `one-db-only` | boolean | No | false | None | Use only PostgreSQL database instead of all configured databases |
+| `max-parallel-verify` | number | No | unlimited | None | Maximum number of parallel jobs for the verify job (can be useful if you have really long running Behat tests and do not want to block too many runners at the same time) |
+| `redis-enabled` | boolean | No | false | None | Start Redis service before running runtime tests |
+| `php-extensions` | string | No | - | None | PHP extensions to install (e.g., "redis", "memcached", "redis,imagick") |
+| `docker-compose-file` | string | No | - | None | Path to Docker Compose file (relative to plugin repository root) for starting an additional service |
+| `pre-install-script` | string | No | - | None | Custom script to run before installing moodle-plugin-ci (multiline bash script) |
+| `extra-config` | string | No | - | None | Additional lines to add to the Moodle config.php after installing moodle-plugin-ci (multiline, one PHP statement per line). The lines are added with `moodle-plugin-ci add-config` and apply to both the PHPUnit and the Behat runs. |
+| `behat-suite` | string | No | - | None | The theme to be used for running Behat tests (e.g. "boost_union") |
+| `behat-tags` | string | No | - | None | Behat tags to filter which Behat scenarios to run (e.g. "@javascript"). Separate multiple tags with a comma, but without any spaces in-between. |
+| `behat-timeout` | number | No | - | None | Behat timeout multiplier (e.g. 3 for 3x timeout) |
+| `behat-slices` | number | No | 1 | None | Number of parallel Behat slices to split the Behat run across (1 = no splitting). Each slice runs a subset of the plugin's Behat feature files in its own job, distributed by scenario count. |
+| `behat-strict` | boolean | No | true | Supported | Let the runtime tests fail if Behat reports pending or undefined steps (which Behat itself does not treat as failures) |
+| `pr-check-diff-contains` | string | No | - | None | Pull request diff must contain this text |
+| `pr-check-diff-does-not-contain` | string | No | - | None | Pull request diff must not contain this text |
+| `pr-check-body-contains` | string | No | - | None | Pull request body must contain this text |
+| `pr-check-body-does-not-contain` | string | No | - | None | Pull request body must not contain this text |
+| `pr-check-files-changed` | string | No | - | None | Number of files that must have changed in pull request |
+| `pr-check-lines-changed` | string | No | - | None | Number of lines that must have changed in pull request |
+| `pr-check-waived-users` | string | No | - | None | Comma-separated list of users exempt from pull request checks |
+| `phpdoc-max-warnings` | number | No | 0 | None | Number of warnings which are tolerated in the Moodle PHPDoc Checker (phpdoc) step before it fails. |
+| `grunt-max-lint-warnings` | number | No | 0 | None | Number of lint warnings which are tolerated in the Grunt step before it fails. |
+| `phpcs-continue-on-error` | boolean | No | false | Supported | Continue on error for Moodle Code Checker (phpcs) |
+| `phpcs-max-warnings` | number | No | 0 | None | Number of warnings which are tolerated in the Moodle Code Checker (phpcs) step before it fails. |
+| `mustache-continue-on-error` | boolean | No | false | Supported | Continue on error for Mustache Lint |
+| `scss-deprecations` | boolean | No | true | Supported | Include SCSS deprecation warnings in Behat tests |
+
+### Organization-wide settings via configuration variables
+
+Most parameters of this workflow are specific to a particular plugin and belong into the caller workflow of the plugin repository. Some parameters however control the behaviour of the workflow as a whole and are rather a matter of organization policy than of the particular plugin. To avoid repeating these parameters in the caller workflow of each and every plugin repository, they can also be set via [configuration variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables) at the organization level for all plugin repositories at once.
+
+| Input Parameter | Corresponding configuration variable | Default |
+|-----------------|--------------------------------------|---------|
+| `phpcs-continue-on-error` | `MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR` | false |
+| `mustache-continue-on-error` | `MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR` | false |
+| `scss-deprecations` | `MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS` | true |
+| `behat-strict` | `MOODLE_PLUGIN_CI_BEHAT_STRICT` | true |
+
+The effective value of each of these parameters is resolved in this order of precedence:
+
+1. The input parameter which is passed in the caller workflow, if it deviates from the default value.
+2. The configuration variable, if set. As usual in Github, a repository variable takes precedence over an organization variable with the same name.
+3. The default value.
+
+The allowed values of the configuration variables are `true` and `false`. Any other value lets the preflight job fail with a clear error message. The preflight job also logs where the effective value of each of these parameters came from.
+
+Please note: As these parameters are booleans, Github does not let the workflow tell a parameter which has not been set in the caller workflow apart from a parameter which has been explicitly set to its default value. Both cases are therefore treated alike and let the configuration variable decide. If you want a single plugin repository to deviate from an organization variable and to run with the default value again, set a repository variable with the same name to the default value instead of setting the parameter in the caller workflow.
+
+To set a configuration variable at the organization level, open your organization's settings, go to Secrets and variables, then Actions, switch to the Variables tab and create a new organization variable with the name from the table above and the value `true` or `false`. Make sure that the repository access of the variable covers your plugin repositories.
 
 ### Available secrets
 
@@ -487,7 +511,7 @@ Typical causes are:
 
 The workflow therefore scans the Behat summary (e.g. `12 scenarios (11 passed, 1 pending)`) after the Behat run and fails the runtime tests if any pending or undefined steps were reported. The list of pending steps and the summary lines are printed in the workflow log.
 
-This check is enabled by default. If your plugin intentionally contains pending or undefined steps, you can disable it by setting `behat-strict: false`. The Behat run itself is not changed by this setting, it only controls whether pending or undefined steps let the runtime tests fail.
+This check is enabled by default. If your plugin intentionally contains pending or undefined steps, you can disable it by setting `behat-strict: false` in your caller workflow or by setting the `MOODLE_PLUGIN_CI_BEHAT_STRICT` configuration variable to `false` in your organization or repository. The Behat run itself is not changed by this setting, it only controls whether pending or undefined steps let the runtime tests fail.
 
 ### Behat web server supervision
 

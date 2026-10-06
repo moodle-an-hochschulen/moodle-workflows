@@ -152,6 +152,10 @@ jobs:
       matrix-verify: ${{ steps.preflight-matrix.outputs.matrix-verify }}
       moodle-core-branch: ${{ steps.determine-branch.outputs.moodle-core-branch }}
       mustache-lint-extended: ${{ steps.mustache-lint-files.outputs.mustache-lint-extended }}
+      phpcs-continue-on-error: ${{ steps.resolve-inputs.outputs.phpcs-continue-on-error }}
+      mustache-continue-on-error: ${{ steps.resolve-inputs.outputs.mustache-continue-on-error }}
+      scss-deprecations: ${{ steps.resolve-inputs.outputs.scss-deprecations }}
+      behat-strict: ${{ steps.resolve-inputs.outputs.behat-strict }}
     steps:
       - name: Checkout calling plugin repository
         uses: actions/checkout@v6
@@ -247,6 +251,53 @@ jobs:
 
           echo "moodle-core-branch=$MOODLE_BRANCH" >> $GITHUB_OUTPUT
           echo "Final Moodle branch: $MOODLE_BRANCH"
+
+      # Some inputs control the behaviour of the workflow as a whole rather than the testing of a particular plugin.
+      # To avoid repeating them in the caller workflow of each and every plugin repository, they can also be set
+      # organization-wide (or repository-wide) via configuration variables. This step resolves the effective value
+      # of each of these inputs with the precedence: caller workflow input, then configuration variable, then default.
+      # As these inputs are booleans, an input which the caller did not set cannot be told apart from an input
+      # which the caller explicitly set to its default value. Therefore an input which deviates from its default
+      # always wins, while an input at its default value lets the configuration variable decide.
+      - name: Resolve inputs with configuration variable fallback
+        id: resolve-inputs
+        env:
+          INPUT_PHPCS_CONTINUE_ON_ERROR: ${{ inputs.phpcs-continue-on-error }}
+          INPUT_MUSTACHE_CONTINUE_ON_ERROR: ${{ inputs.mustache-continue-on-error }}
+          INPUT_SCSS_DEPRECATIONS: ${{ inputs.scss-deprecations }}
+          INPUT_BEHAT_STRICT: ${{ inputs.behat-strict }}
+          VAR_PHPCS_CONTINUE_ON_ERROR: ${{ vars.MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR }}
+          VAR_MUSTACHE_CONTINUE_ON_ERROR: ${{ vars.MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR }}
+          VAR_SCSS_DEPRECATIONS: ${{ vars.MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS }}
+          VAR_BEHAT_STRICT: ${{ vars.MOODLE_PLUGIN_CI_BEHAT_STRICT }}
+        run: |
+          # Usage: resolve <input name> <input value> <variable name> <variable value> <default value>
+          resolve() {
+            local name="$1" input="$2" varname="$3" var="$4" default="$5"
+            local value source
+            # Normalise the variable to lowercase and accept only true or false (or an unset variable).
+            var="${var,,}"
+            if [ -n "$var" ] && [ "$var" != "true" ] && [ "$var" != "false" ]; then
+              echo "::error::Invalid value '$var' for the configuration variable $varname. Allowed values are 'true' and 'false'."
+              exit 1
+            fi
+            if [ "$input" != "$default" ]; then
+              value="$input"
+              source="caller workflow input"
+            elif [ -n "$var" ]; then
+              value="$var"
+              source="configuration variable $varname"
+            else
+              value="$default"
+              source="default"
+            fi
+            echo "$name: $value (from $source)"
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+          }
+          resolve phpcs-continue-on-error "$INPUT_PHPCS_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR "$VAR_PHPCS_CONTINUE_ON_ERROR" false
+          resolve mustache-continue-on-error "$INPUT_MUSTACHE_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR "$VAR_MUSTACHE_CONTINUE_ON_ERROR" false
+          resolve scss-deprecations "$INPUT_SCSS_DEPRECATIONS" MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS "$VAR_SCSS_DEPRECATIONS" true
+          resolve behat-strict "$INPUT_BEHAT_STRICT" MOODLE_PLUGIN_CI_BEHAT_STRICT "$VAR_BEHAT_STRICT" true
 
       - name: Check for Mustache Lint upstream and baseline files
         id: mustache-lint-files
@@ -458,7 +509,7 @@ jobs:
 
       - name: Moodle Code Checker
         if: ${{ !cancelled() }}
-        continue-on-error: ${{ inputs.phpcs-continue-on-error }}
+        continue-on-error: ${{ needs.preflight.outputs.phpcs-continue-on-error == 'true' }}
         run: moodle-plugin-ci phpcs --max-warnings ${{ inputs.phpcs-max-warnings }}
 
       - name: Pull request content checker
@@ -533,12 +584,12 @@ jobs:
 
       - name: Mustache Lint
         if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended != 'true' }}
-        continue-on-error: ${{ inputs.mustache-continue-on-error }}
+        continue-on-error: ${{ needs.preflight.outputs.mustache-continue-on-error == 'true' }}
         run: moodle-plugin-ci mustache
 
       - name: Mustache Lint (with upstream templates and baseline file)
         if: ${{ !cancelled() && needs.preflight.outputs.mustache-lint-extended == 'true' }}
-        continue-on-error: ${{ inputs.mustache-continue-on-error }}
+        continue-on-error: ${{ needs.preflight.outputs.mustache-continue-on-error == 'true' }}
         uses: moodle-an-hochschulen/moodle-workflows/.github/actions/mustache-lint@main
 
       # Cleanup for the intermediate fix for https://github.com/moodlehq/moodle-plugin-ci/issues/400 (see above).
@@ -804,7 +855,7 @@ jobs:
         run: |
           set -o pipefail
           export MOODLE_START_BEHAT_SERVERS=NO
-          moodle-plugin-ci behat --profile chrome${{ inputs.scss-deprecations && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"} 2>&1 | tee "${{ runner.temp }}/behat-output.log"
+          moodle-plugin-ci behat --profile chrome${{ needs.preflight.outputs.scss-deprecations == 'true' && ' --scss-deprecations' || '' }}${{ inputs.behat-suite != '' && format(' --suite {0}', inputs.behat-suite) || '' }} ${BEHAT_TAGS:+--tags="$BEHAT_TAGS"} 2>&1 | tee "${{ runner.temp }}/behat-output.log"
 
       # Report if the PHP web server had to be restarted during the Behat run. This points to a server crash which
       # the supervisor loop has covered, the web server log then holds the details. The number of restarts is
@@ -868,9 +919,9 @@ jobs:
       # Behat generator does not know) or undefined steps (a step without a matching step definition) as failures
       # and exits with code 0. The affected scenarios are silently skipped and the Behat step passes nevertheless.
       # To catch such glitches, this step scans the Behat summary lines for pending or undefined steps and fails if any are found.
-      # The check can be disabled with the behat-strict input.
+      # The check can be disabled with the behat-strict input or the MOODLE_PLUGIN_CI_BEHAT_STRICT configuration variable.
       - name: Check for pending or undefined Behat steps
-        if: ${{ !cancelled() && steps.behat.outcome == 'success' && inputs.behat-strict }}
+        if: ${{ !cancelled() && steps.behat.outcome == 'success' && needs.preflight.outputs.behat-strict == 'true' }}
         run: |
           BEHAT_LOG="${{ runner.temp }}/behat-output.log"
           if [ ! -f "$BEHAT_LOG" ]; then
