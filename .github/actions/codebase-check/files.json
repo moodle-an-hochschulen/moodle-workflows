@@ -1,0 +1,13 @@
+{
+    "standard": [
+        "version.php",
+        "lang/en/{langfile}.php",
+        "classes/privacy/provider.php",
+        "COPYING.txt"
+    ],
+    "extended": [
+        "CHANGES.md",
+        "README.md",
+        "UPGRADE.md"
+    ]
+}

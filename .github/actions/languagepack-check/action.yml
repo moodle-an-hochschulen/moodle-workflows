@@ -1,0 +1,17 @@
+name: Language Pack Checker
+description: Print a warning if the plugin ships other language packs than the English one, as the translations of published plugins are supposed to be managed in AMOS
+
+inputs:
+  plugin-dir:
+    description: Path to the plugin directory, relative to the workspace root
+    required: false
+    default: plugin
+
+runs:
+  using: composite
+  steps:
+    - name: Check the plugin for language packs other than the English one
+      shell: bash
+      env:
+        PLUGIN_DIR: ${{ inputs.plugin-dir }}
+      run: bash "$GITHUB_ACTION_PATH/languagepack-check.sh"

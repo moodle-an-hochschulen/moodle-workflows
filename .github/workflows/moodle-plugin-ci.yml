@@ -91,6 +91,21 @@ on:
         description: Comma-separated list of users exempt from pull request checks
         type: string
         required: false
+      codebase-check-completeness:
+        description: Which files the Plugin Codebase Completeness Checker requires, either "standard" (version.php, the English language file, the privacy provider and COPYING.txt), "extended" (the standard files plus the CHANGES.md, README.md and UPGRADE.md files which your organization may require on top) or "off" (no check at all)
+        type: string
+        required: false
+        default: standard
+      codebase-check-completeness-casesensitive:
+        description: Let the Plugin Codebase Completeness Checker require the file names to match exactly (set to false to accept files which differ only in upper and lower case, e.g. Readme.md instead of README.md)
+        type: boolean
+        required: false
+        default: true
+      codebase-check-languagepacks:
+        description: Let the Language Pack Checker print a warning if the plugin ships other language packs than the English one (set to false for unpublished plugins which legitimately ship their own translations)
+        type: boolean
+        required: false
+        default: true
       phpcs-max-warnings:
         description: Number of warnings which are tolerated in the Moodle Code Checker (phpcs) step before it fails.
         type: number
@@ -156,6 +171,9 @@ jobs:
       mustache-continue-on-error: ${{ steps.resolve-inputs.outputs.mustache-continue-on-error }}
       scss-deprecations: ${{ steps.resolve-inputs.outputs.scss-deprecations }}
       behat-strict: ${{ steps.resolve-inputs.outputs.behat-strict }}
+      codebase-check-completeness: ${{ steps.resolve-inputs.outputs.codebase-check-completeness }}
+      codebase-check-completeness-casesensitive: ${{ steps.resolve-inputs.outputs.codebase-check-completeness-casesensitive }}
+      codebase-check-languagepacks: ${{ steps.resolve-inputs.outputs.codebase-check-languagepacks }}
     steps:
       - name: Checkout calling plugin repository
         uses: actions/checkout@v6
@@ -256,7 +274,7 @@ jobs:
       # To avoid repeating them in the caller workflow of each and every plugin repository, they can also be set
       # organization-wide (or repository-wide) via configuration variables. This step resolves the effective value
       # of each of these inputs with the precedence: caller workflow input, then configuration variable, then default.
-      # As these inputs are booleans, an input which the caller did not set cannot be told apart from an input
+      # As these inputs have default values, an input which the caller did not set cannot be told apart from an input
       # which the caller explicitly set to its default value. Therefore an input which deviates from its default
       # always wins, while an input at its default value lets the configuration variable decide.
       - name: Resolve inputs with configuration variable fallback
@@ -266,19 +284,33 @@ jobs:
           INPUT_MUSTACHE_CONTINUE_ON_ERROR: ${{ inputs.mustache-continue-on-error }}
           INPUT_SCSS_DEPRECATIONS: ${{ inputs.scss-deprecations }}
           INPUT_BEHAT_STRICT: ${{ inputs.behat-strict }}
+          INPUT_CODEBASE_CHECK_COMPLETENESS: ${{ inputs.codebase-check-completeness }}
+          INPUT_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE: ${{ inputs.codebase-check-completeness-casesensitive }}
+          INPUT_CODEBASE_CHECK_LANGUAGEPACKS: ${{ inputs.codebase-check-languagepacks }}
           VAR_PHPCS_CONTINUE_ON_ERROR: ${{ vars.MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR }}
           VAR_MUSTACHE_CONTINUE_ON_ERROR: ${{ vars.MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR }}
           VAR_SCSS_DEPRECATIONS: ${{ vars.MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS }}
           VAR_BEHAT_STRICT: ${{ vars.MOODLE_PLUGIN_CI_BEHAT_STRICT }}
+          VAR_CODEBASE_CHECK_COMPLETENESS: ${{ vars.MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS }}
+          VAR_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE: ${{ vars.MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE }}
+          VAR_CODEBASE_CHECK_LANGUAGEPACKS: ${{ vars.MOODLE_PLUGIN_CI_CODEBASE_CHECK_LANGUAGEPACKS }}
         run: |
-          # Usage: resolve <input name> <input value> <variable name> <variable value> <default value>
+          # Usage: resolve <input name> <input value> <variable name> <variable value> <default value> <allowed values>
+          # (the allowed values are given as a single space-separated string)
           resolve() {
-            local name="$1" input="$2" varname="$3" var="$4" default="$5"
+            local name="$1" input="$2" varname="$3" var="$4" default="$5" allowed="$6"
             local value source
-            # Normalise the variable to lowercase and accept only true or false (or an unset variable).
+            # Normalise the input and the variable to lowercase and accept only the allowed values
+            # (an unset input falls back to the default, an unset variable is ignored).
+            input="${input,,}"
             var="${var,,}"
-            if [ -n "$var" ] && [ "$var" != "true" ] && [ "$var" != "false" ]; then
-              echo "::error::Invalid value '$var' for the configuration variable $varname. Allowed values are 'true' and 'false'."
+            [ -n "$input" ] || input="$default"
+            if [[ " $allowed " != *" $input "* ]]; then
+              echo "::error::Invalid value '$input' for the input $name. Allowed values are: ${allowed// /, }."
+              exit 1
+            fi
+            if [ -n "$var" ] && [[ " $allowed " != *" $var "* ]]; then
+              echo "::error::Invalid value '$var' for the configuration variable $varname. Allowed values are: ${allowed// /, }."
               exit 1
             fi
             if [ "$input" != "$default" ]; then
@@ -294,10 +326,13 @@ jobs:
             echo "$name: $value (from $source)"
             echo "$name=$value" >> "$GITHUB_OUTPUT"
           }
-          resolve phpcs-continue-on-error "$INPUT_PHPCS_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR "$VAR_PHPCS_CONTINUE_ON_ERROR" false
-          resolve mustache-continue-on-error "$INPUT_MUSTACHE_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR "$VAR_MUSTACHE_CONTINUE_ON_ERROR" false
-          resolve scss-deprecations "$INPUT_SCSS_DEPRECATIONS" MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS "$VAR_SCSS_DEPRECATIONS" true
-          resolve behat-strict "$INPUT_BEHAT_STRICT" MOODLE_PLUGIN_CI_BEHAT_STRICT "$VAR_BEHAT_STRICT" true
+          resolve phpcs-continue-on-error "$INPUT_PHPCS_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_PHPCS_CONTINUE_ON_ERROR "$VAR_PHPCS_CONTINUE_ON_ERROR" false "true false"
+          resolve mustache-continue-on-error "$INPUT_MUSTACHE_CONTINUE_ON_ERROR" MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR "$VAR_MUSTACHE_CONTINUE_ON_ERROR" false "true false"
+          resolve scss-deprecations "$INPUT_SCSS_DEPRECATIONS" MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS "$VAR_SCSS_DEPRECATIONS" true "true false"
+          resolve behat-strict "$INPUT_BEHAT_STRICT" MOODLE_PLUGIN_CI_BEHAT_STRICT "$VAR_BEHAT_STRICT" true "true false"
+          resolve codebase-check-completeness "$INPUT_CODEBASE_CHECK_COMPLETENESS" MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS "$VAR_CODEBASE_CHECK_COMPLETENESS" standard "off standard extended"
+          resolve codebase-check-completeness-casesensitive "$INPUT_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE" MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE "$VAR_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE" true "true false"
+          resolve codebase-check-languagepacks "$INPUT_CODEBASE_CHECK_LANGUAGEPACKS" MOODLE_PLUGIN_CI_CODEBASE_CHECK_LANGUAGEPACKS "$VAR_CODEBASE_CHECK_LANGUAGEPACKS" true "true false"
 
       - name: Check for Mustache Lint upstream and baseline files
         id: mustache-lint-files
@@ -554,6 +589,20 @@ jobs:
           else
             echo "No development leftovers found."
           fi
+
+      - name: Plugin Codebase Completeness Checker
+        if: ${{ !cancelled() && needs.preflight.outputs.codebase-check-completeness != 'off' }}
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/codebase-check@main
+        with:
+          mode: ${{ needs.preflight.outputs.codebase-check-completeness }}
+          plugin-dir: plugin
+          case-sensitive: ${{ needs.preflight.outputs.codebase-check-completeness-casesensitive }}
+
+      - name: Language Pack Checker
+        if: ${{ !cancelled() && needs.preflight.outputs.codebase-check-languagepacks == 'true' }}
+        uses: moodle-an-hochschulen/moodle-workflows/.github/actions/languagepack-check@main
+        with:
+          plugin-dir: plugin
 
       - name: Validating
         if: ${{ !cancelled() }}

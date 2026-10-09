@@ -26,6 +26,8 @@ A comprehensive continuous integration workflow for Moodle plugins based on the 
 
 - **Automatic Moodle branch detection** from the Moodle plugin repository branch or from the plugin's version.php file
 - **Development leftover detection** to catch leftovers like *TODO* comments or unresolved merge conflicts
+- **Plugin codebase completeness check** to make sure that the plugin ships the files which every Moodle plugin needs plus additional optional files on top
+- **Language pack check** to warn about language packs other than English which should rather be managed in AMOS
 - **Easy plugin dependency addition** for plugins that depend on other plugins
 - **Split static and runtime jobs** to avoid running static tests unnecessarily on each PHP and database version
 - **Single database testing** to run only PostgreSQL for plugins which do not interact with the Moodle database at all
@@ -189,6 +191,34 @@ jobs:
       pr-check-waived-users: "dependabot[bot]"
 ```
 
+#### With extended plugin codebase completeness check
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      codebase-check-completeness: extended
+```
+
+#### With muted language pack warning for an unpublished plugin
+
+```yaml
+name: Moodle Plugin CI
+
+on:
+  [...]
+
+jobs:
+  moodle-plugin-ci:
+    with:
+      codebase-check-languagepacks: false
+```
+
 #### With specific Behat suite
 
 ```yaml
@@ -331,6 +361,9 @@ jobs:
 | `pr-check-files-changed` | string | No | - | None | Number of files that must have changed in pull request |
 | `pr-check-lines-changed` | string | No | - | None | Number of lines that must have changed in pull request |
 | `pr-check-waived-users` | string | No | - | None | Comma-separated list of users exempt from pull request checks |
+| `codebase-check-completeness` | string | No | standard | Supported | Which files the Plugin Codebase Completeness Checker requires: `standard`, `extended` or `off`. See below for the files which each value requires. |
+| `codebase-check-completeness-casesensitive` | boolean | No | true | Supported | Let the Plugin Codebase Completeness Checker require the file names to match exactly (set to `false` to accept files which differ only in upper and lower case, e.g. `Readme.md` instead of `README.md`) |
+| `codebase-check-languagepacks` | boolean | No | true | Supported | Let the Language Pack Checker print a warning if the plugin ships other language packs than the English one |
 | `phpdoc-max-warnings` | number | No | 0 | None | Number of warnings which are tolerated in the Moodle PHPDoc Checker (phpdoc) step before it fails. |
 | `grunt-max-lint-warnings` | number | No | 0 | None | Number of lint warnings which are tolerated in the Grunt step before it fails. |
 | `phpcs-continue-on-error` | boolean | No | false | Supported | Continue on error for Moodle Code Checker (phpcs) |
@@ -348,6 +381,9 @@ Most parameters of this workflow are specific to a particular plugin and belong 
 | `mustache-continue-on-error` | `MOODLE_PLUGIN_CI_MUSTACHE_CONTINUE_ON_ERROR` | false |
 | `scss-deprecations` | `MOODLE_PLUGIN_CI_SCSS_DEPRECATIONS` | true |
 | `behat-strict` | `MOODLE_PLUGIN_CI_BEHAT_STRICT` | true |
+| `codebase-check-completeness` | `MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS` | standard |
+| `codebase-check-completeness-casesensitive` | `MOODLE_PLUGIN_CI_CODEBASE_CHECK_COMPLETENESS_CASESENSITIVE` | true |
+| `codebase-check-languagepacks` | `MOODLE_PLUGIN_CI_CODEBASE_CHECK_LANGUAGEPACKS` | true |
 
 The effective value of each of these parameters is resolved in this order of precedence:
 
@@ -355,11 +391,11 @@ The effective value of each of these parameters is resolved in this order of pre
 2. The configuration variable, if set. As usual in Github, a repository variable takes precedence over an organization variable with the same name.
 3. The default value.
 
-The allowed values of the configuration variables are `true` and `false`. Any other value lets the preflight job fail with a clear error message. The preflight job also logs where the effective value of each of these parameters came from.
+The allowed values of a configuration variable are the same as the allowed values of the corresponding input parameter, i.e. `true` and `false` for the boolean parameters and `off`, `standard` and `extended` for `codebase-check-completeness`. Any other value lets the preflight job fail with a clear error message. The preflight job also logs where the effective value of each of these parameters came from.
 
-Please note: As these parameters are booleans, Github does not let the workflow tell a parameter which has not been set in the caller workflow apart from a parameter which has been explicitly set to its default value. Both cases are therefore treated alike and let the configuration variable decide. If you want a single plugin repository to deviate from an organization variable and to run with the default value again, set a repository variable with the same name to the default value instead of setting the parameter in the caller workflow.
+Please note: As these parameters have default values, Github does not let the workflow tell a parameter which has not been set in the caller workflow apart from a parameter which has been explicitly set to its default value. Both cases are therefore treated alike and let the configuration variable decide. If you want a single plugin repository to deviate from an organization variable and to run with the default value again, set a repository variable with the same name to the default value instead of setting the parameter in the caller workflow.
 
-To set a configuration variable at the organization level, open your organization's settings, go to Secrets and variables, then Actions, switch to the Variables tab and create a new organization variable with the name from the table above and the value `true` or `false`. Make sure that the repository access of the variable covers your plugin repositories.
+To set a configuration variable at the organization level, open your organization's settings, go to Secrets and variables, then Actions, switch to the Variables tab and create a new organization variable with the name from the table above and one of its allowed values. Make sure that the repository access of the variable covers your plugin repositories.
 
 ### Available secrets
 
@@ -396,6 +432,35 @@ Use the `php-extensions` parameter to install additional PHP extensions needed b
 ### Pull request content validation
 
 The workflow supports automated pull request content validation using the [github-pr-contains-action](https://github.com/JJ/github-pr-contains-action) action by JJ. These checks run during the static analysis phase and only apply to pull requests. Please see JJ's documentation for additional details.
+
+### Plugin codebase completeness check
+
+The static checks include a Plugin Codebase Completeness Checker step which makes sure that the plugin ships the files which it needs. The `codebase-check-completeness` parameter controls which files are required:
+
+- `standard` (the default) requires the files which every Moodle plugin needs:
+  - `version.php`
+  - `lang/en/<langfile>.php`, the English language file. The `<langfile>` is the plugin's frankenstyle component name which is read from `$plugin->component` in `version.php`. For activity modules, the language file is named after the module name without the `mod_` prefix, as Moodle expects it.
+  - `classes/privacy/provider.php`, the privacy provider which Moodle's privacy API expects from every plugin.
+  - `COPYING.txt`, the license file.
+- `extended` requires these files on top. They are optional for Moodle plugins in general, but at least Moodle an Hochschulen wants to make sure that all of its plugins come with the same set of documentation files:
+  - `CHANGES.md`
+  - `README.md`
+  - `UPGRADE.md`
+- `off` skips the step altogether.
+
+The step fails if any of the required files is missing from the plugin's root directory.
+
+By default, the file names have to match the list exactly, including upper and lower case, as the Github runners use a case-sensitive file system. If you set `codebase-check-completeness-casesensitive: false` in your caller workflow, a file whose path differs from the list only in upper and lower case (e.g. `Readme.md` instead of `README.md`) is accepted as well. The workflow log then shows under which name the file was found.
+
+The file lists are not hard-coded in the workflow but maintained in the [files.json](.github/actions/codebase-check/files.json) file of the bundled `codebase-check` action. The `{langfile}` placeholder in a file path is replaced with the name of the plugin's language file as described above.
+
+Please note: The step only checks the plugin itself, not any subplugins which the plugin may contain.
+
+### Language pack check
+
+The static checks also include a Language Pack Checker step which prints a warning if the plugin ships other language packs than the English one in its `lang` directory. For published plugins, the translations are supposed to be managed in [AMOS](https://lang.moodle.org/) rather than being shipped with the plugin, where they would get out of sync with the AMOS translations sooner or later. The warning never fails the step.
+
+If your plugin is not published and legitimately ships its own translations, you can mute this warning by setting `codebase-check-languagepacks: false` in your caller workflow.
 
 ### Mustache Lint with upstream templates and a baseline file
 

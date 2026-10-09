@@ -1,0 +1,26 @@
+name: Plugin Codebase Completeness Checker
+description: Check that the plugin codebase contains the files which are listed in files.json for the given mode
+
+inputs:
+  mode:
+    description: Which files to require, either "standard" (the files which every Moodle plugin needs) or "extended" (the standard files plus additional optional files on top)
+    required: true
+  plugin-dir:
+    description: Path to the plugin directory, relative to the workspace root
+    required: false
+    default: plugin
+  case-sensitive:
+    description: Whether the file names have to match the file list exactly ("true") or whether a file which differs only in upper and lower case is accepted as well ("false")
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Check the plugin codebase for completeness
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        PLUGIN_DIR: ${{ inputs.plugin-dir }}
+        CASE_SENSITIVE: ${{ inputs.case-sensitive }}
+      run: bash "$GITHUB_ACTION_PATH/codebase-check.sh"
